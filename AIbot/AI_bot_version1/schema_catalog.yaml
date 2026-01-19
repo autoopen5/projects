@@ -1,0 +1,26 @@
+tables:
+  SHOW_Disposal_reports:
+    columns:
+      - { name: "exit_date", type: "Date" }
+      - { name: "Year", type: "UInt16" }
+      - { name: "Week", type: "UInt8" }
+      - { name: "Month", type: "UInt8" }
+      - { name: "Type", type: "String", nullable: true }
+      - { name: "contragent", type: "String", nullable: true }
+      - { name: "cod", type: "Int64" }
+      - { name: "Region_plan_sales", type: "String" }
+      - { name: "Region MMH", type: "String" }
+      - { name: "federal_subject_name", type: "String", nullable: true }
+      - { name: "district", type: "String", nullable: true }
+      - { name: "city", type: "String", nullable: true }
+      - { name: "inn", type: "String", nullable: true }
+      - { name: "owner", type: "String", nullable: true }
+      - { name: "id_md", type: "String", nullable: true }
+      - { name: "adres", type: "String", nullable: true }
+      - { name: "sku", type: "String", nullable: true }
+      - { name: "SKU", type: "String" }
+      - { name: "gtin", type: "String" }
+      - { name: "batch", type: "String" }
+      - { name: "exp_date", type: "Date" }
+      - { name: "exit_type", type: "String" }
+      - { name: "cnt", type: "Int64" }
