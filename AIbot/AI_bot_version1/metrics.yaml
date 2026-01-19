@@ -1,0 +1,155 @@
+---
+defaults:
+  time_filter_days: 365
+  top_n: 50
+  dialect: clickhouse
+  time_column: exit_date
+
+measures:
+  sales_units:
+    expr: "sum(cnt)"
+    table: "MDLP.SHOW_Disposal_reports"
+    format: "integer"
+    description: "Количество выбытий/продаж (MDLP)"
+  unique_contragents:
+    expr: "countDistinct(contragent)"
+    table: "MDLP.SHOW_Disposal_reports"
+    format: "integer"
+    description: "Число уникальных контрагентов"
+  unique_sku:
+    expr: "countDistinct(SKU)"
+    table: "MDLP.SHOW_Disposal_reports"
+    format: "integer"
+    description: "Число уникальных SKU"
+  unique_gtin:
+    expr: "countDistinct(gtin)"
+    table: "MDLP.SHOW_Disposal_reports"
+    format: "integer"
+    description: "Число уникальных GTIN"
+
+dimensions:
+  date:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "exit_date"
+    type: "date"
+    synonyms: ["дата","период","date","дата продажи"]
+
+  year:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Year"
+    type: "categorical"
+    synonyms: ["год","year"]
+
+  month:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Month"
+    type: "categorical"
+    synonyms: ["месяц","month"]
+
+  week:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Week"
+    type: "categorical"
+    synonyms: ["неделя","week"]
+
+  type:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Type"
+    type: "categorical"
+    synonyms: ["тип","тип контрагента"]
+
+  contragent:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "contragent"
+    type: "categorical"
+    synonyms: ["контрагент","аптека","организация"]
+
+  cod:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "cod"
+    type: "categorical"
+    synonyms: ["код","id"]
+
+  region_plan_sales:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Region_plan_sales"
+    type: "categorical"
+    synonyms: ["регион план продаж","region plan"]
+
+  region_mmh:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "Region MMH"
+    type: "categorical"
+    synonyms: ["регион","округ ммх","mmh","region mmh"]
+
+  federal_subject_name:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "federal_subject_name"
+    type: "categorical"
+    synonyms: ["субъект","регион субъект"]
+
+  district:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "district"
+    type: "categorical"
+    synonyms: ["район","district"]
+
+  city:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "city"
+    type: "categorical"
+    synonyms: ["город","city"]
+
+  inn:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "inn"
+    type: "categorical"
+    synonyms: ["инн","inn"]
+
+  owner:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "owner"
+    type: "categorical"
+    synonyms: ["владелец","owner"]
+
+  id_md:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "id_md"
+    type: "categorical"
+    synonyms: ["id md","ид мд"]
+
+  adres:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "adres"
+    type: "categorical"
+    synonyms: ["адрес","address"]
+
+  sku:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "SKU"
+    type: "categorical"
+    synonyms: ["sku","SKU","препарат","товар","наименование"]
+
+  gtin:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "gtin"
+    type: "categorical"
+    synonyms: ["gtin","штрихкод","ean"]
+
+  batch:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "batch"
+    type: "categorical"
+    synonyms: ["партия","серия","batch"]
+
+  exp_date:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "exp_date"
+    type: "date"
+    synonyms: ["срок годности","exp date"]
+
+  exit_type:
+    table: "MDLP.SHOW_Disposal_reports"
+    column: "exit_type"
+    type: "categorical"
+    synonyms: ["тип выбытия","продажа","exit type"]
