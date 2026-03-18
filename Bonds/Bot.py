@@ -12,8 +12,6 @@ TOKEN = "8691798405:AAGzC1Ooe90EI6J6JkeRuZ5wQGyP_3UxZh4"
 FILE = "bonds.xlsx"
 INTERVAL = 300
 
-# MOEX_URL = "https://iss.moex.com/iss/engines/stock/markets/bonds/securities/{}.json"
-
 
 subscribers = set()
 sent_signals = set()
@@ -154,6 +152,7 @@ async def monitor(context):
     for isin, info in bonds.items():
 
         target = info.get("SellPrice")
+        name = info.get("Название")
         price = moex.get(isin)
 
         print(isin, "price:", price, "target:", target)
@@ -177,7 +176,7 @@ async def monitor(context):
     SELL SIGNAL
 
     {isin}
-
+    name: {name}
     price: {price}
     target: {target}
     """
