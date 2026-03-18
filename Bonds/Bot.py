@@ -22,7 +22,11 @@ sent_signals = set()
 
 def load_bonds():
 
-    df = pd.read_excel(FILE)
+    sheet_id = "1p0jGfSuoi3eX3y5LWguo8kj87_mUq68TFDkt3bRRLdg"
+    
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+
+    df = pd.read_csv(url)
 
     bonds = {}
 
