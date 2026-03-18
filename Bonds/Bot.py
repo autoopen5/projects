@@ -31,8 +31,11 @@ def load_bonds():
     for _, row in df.iterrows():
 
         bonds[row["ISIN"]] = {
+                "Название": row.get("Характеристики Вклада"),
                 "SellPrice": row.get("Продать не ниже, в %"),
                 "Рейтинг": row.get("Рейтинг"),
+                "Депозиты Банка": row.get("Депозиты Банка"),	
+                "Фио": row.get("Фио"),
                 "Кол-во обл": row.get("Кол-во обл"),
                 "Средняя цена": row.get("Средняя цена"),
                 "ТКД": row.get("ТКД"),
@@ -221,10 +224,12 @@ async def send_report(context):
                 income = None
 
         rows.append({
+            "Название": info.get("Название"),
             "ISIN": isin,
             "Price": price,
             "SellPrice": info.get("SellPrice"),
-
+            "Депозиты Банка": info.get("Депозиты Банка"),	
+            "Фио": info.get("Фио"),
             "Рейтинг": info.get("Рейтинг"),
             "Кол-во обл": info.get("Кол-во обл"),
             "Средняя цена": avg_price,
