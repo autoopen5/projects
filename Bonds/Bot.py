@@ -45,7 +45,11 @@ def load_bonds_from_yadisk():
 
         # читаем Excel
         df = pd.read_excel(BytesIO(file.content))
-        df = df[df["ISIN"].notna()]
+        df = df[
+        df["ISIN"].notna() & 
+        (df["ISIN"] != "") & 
+        (df["ISIN"] != "-")
+]
         # обновляем кеш
         _cache["df"] = df
         _cache["timestamp"] = time.time()
