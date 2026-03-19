@@ -3,7 +3,7 @@ import requests
 import asyncio
 import time
 import datetime
-
+from io import BytesIO
 from telegram.ext import ApplicationBuilder, CommandHandler
 
 
@@ -16,17 +16,62 @@ INTERVAL = 300
 subscribers = set()
 sent_signals = set()
 
+
+PUBLIC_KEY = "https://disk.yandex.ru/i/9pSrgtGxtg4qUg" # твоя ссылка
+
+_cache = {
+    "df": None,
+    "timestamp": 0
+}
+
+CACHE_TTL = 300  # 5 минут
+
+
+def load_bonds_from_yadisk():
+    # кеш (чтобы не дергать диск каждый раз)
+    if _cache["df"] is not None and time.time() - _cache["timestamp"] < CACHE_TTL:
+        return _cache["df"]
+
+    try:
+        # получаем download URL
+        url = "https://cloud-api.yandex.net/v1/disk/public/resources/download"
+        params = {"public_key": PUBLIC_KEY}
+
+        response = requests.get(url, params=params, timeout=10)
+        download_url = response.json()["href"]
+
+        # скачиваем файл
+        file = requests.get(download_url, timeout=10)
+
+        # читаем Excel
+        df = pd.read_excel(BytesIO(file.content))
+
+        # обновляем кеш
+        _cache["df"] = df
+        _cache["timestamp"] = time.time()
+
+        return df
+
+    except Exception as e:
+        print("Ошибка загрузки bonds.xlsx:", e)
+
+        # fallback: вернуть старые данные если есть
+        if _cache["df"] is not None:
+            return _cache["df"]
+
+        return pd.DataFrame()
+    
 # -----------------------
 # загрузка Excel
 # -----------------------
 
 def load_bonds():
 
-    sheet_id = "1p0jGfSuoi3eX3y5LWguo8kj87_mUq68TFDkt3bRRLdg"
+    # sheet_id = "1p0jGfSuoi3eX3y5LWguo8kj87_mUq68TFDkt3bRRLdg"
     
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    # url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
-    df = pd.read_csv(url)
+    df = load_bonds_from_yadisk()
 
     bonds = {}
 
