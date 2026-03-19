@@ -17,7 +17,7 @@ subscribers = set()
 sent_signals = set()
 
 
-PUBLIC_KEY = "https://disk.yandex.ru/i/9pSrgtGxtg4qUg" # твоя ссылка
+PUBLIC_KEY = "https://disk.yandex.ru/i/lUBDhlSS469W3Q" # твоя ссылка
 
 _cache = {
     "df": None,
@@ -45,7 +45,7 @@ def load_bonds_from_yadisk():
 
         # читаем Excel
         df = pd.read_excel(BytesIO(file.content))
-
+        df = df[df["ISIN"].notna()]
         # обновляем кеш
         _cache["df"] = df
         _cache["timestamp"] = time.time()
@@ -73,11 +73,14 @@ def load_bonds():
 
     df = load_bonds_from_yadisk()
 
-    bonds = {}
+    bonds = []
 
     for _, row in df.iterrows():
+        if pd.isna(row["ISIN"]) or row["ISIN"] == "":
+            continue
 
-        bonds[row["ISIN"]] = {
+        bonds.append({
+                "ISIN": row["ISIN"],
                 "Название": row.get("Характеристики Вклада"),
                 "SellPrice": row.get("Продать не ниже, в %"),
                 "Рейтинг": row.get("Рейтинг"),
@@ -88,7 +91,7 @@ def load_bonds():
                 "ТКД": row.get("ТКД"),
                 "Дата оферты": row.get("Дата оферты"),
                 "Спекуляции": row.get("Спекуляции"),
-            }
+            })
 
     return bonds
 
