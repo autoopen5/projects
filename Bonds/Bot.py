@@ -124,7 +124,6 @@ def load_moex_prices(bonds):
             url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json"
 
             params = {
-                "securities": ",".join(corp),
                 "iss.meta": "off",
                 "iss.only": "marketdata",
                 "marketdata.columns": "SECID,LAST,PREVPRICE"
@@ -141,8 +140,9 @@ def load_moex_prices(bonds):
 
                 secid, last, prev = row
 
-                price = last if last is not None else prev
-                prices[secid] = price
+                if secid in corp:
+                    price = last if last is not None else prev
+                    prices[secid] = price
 
         except Exception as e:
             print("Corp MOEX error:", e)
@@ -153,7 +153,6 @@ def load_moex_prices(bonds):
             url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json"
 
             params = {
-                "securities": ",".join(ofz),
                 "iss.meta": "off",
                 "iss.only": "marketdata",
                 "marketdata.columns": "SECID,LAST,PREVPRICE"
@@ -170,11 +169,15 @@ def load_moex_prices(bonds):
 
                 secid, last, prev = row
 
-                price = last if last is not None else prev
-                prices[secid] = price
+                if secid in ofz:
+                    price = last if last is not None else prev
+                    prices[secid] = price
 
         except Exception as e:
             print("OFZ MOEX error:", e)
+    
+    print("FOUND:", len(prices))
+    print("SAMPLE:", list(prices.keys())[:10])
 
     return prices
 
