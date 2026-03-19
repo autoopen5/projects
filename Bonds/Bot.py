@@ -125,24 +125,36 @@ def load_moex_prices(bonds):
 
             params = {
                 "iss.meta": "off",
-                "iss.only": "marketdata",
-                "marketdata.columns": "SECID,LAST,PREVPRICE"
+                "iss.only": "marketdata,securities",
+                "marketdata.columns": "SECID,LAST,PREVPRICE",
+                "securities.columns": "SECID,ISIN"
             }
 
             r = requests.get(url, params=params, timeout=10)
             data = r.json()
 
             md = data.get("marketdata", {}).get("data", [])
+            sec = data.get("securities", {}).get("data", [])
 
+            # делаем маппинг SECID → ISIN
+            secid_to_isin = {}
+            for row in sec:
+                if len(row) < 2:
+                    continue
+                secid, isin = row
+                secid_to_isin[secid] = isin
+
+            # теперь связываем цены с ISIN
             for row in md:
                 if len(row) < 3:
                     continue
 
                 secid, last, prev = row
+                isin = secid_to_isin.get(secid)
 
-                if secid in corp:
+                if isin in corp:
                     price = last if last is not None else prev
-                    prices[secid] = price
+                    prices[isin] = price
 
         except Exception as e:
             print("Corp MOEX error:", e)
