@@ -53,7 +53,7 @@ def load_bonds():
 
 def load_moex_prices():
 
-    url = "https://iss.moex.com/iss/engines/stock/markets/bonds/securities.json"
+    url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json"
 
     params = {
         "iss.meta": "off",
