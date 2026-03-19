@@ -135,19 +135,18 @@ def get_prices():
     bonds = load_bonds()
     moex = load_moex_prices()
 
-    result = {}
+    result = []
 
-    for isin, target in bonds.items():
+    for bond in bonds:
 
-        if pd.isna(target):
-            continue
-
+        isin = bond["ISIN"]
         price = moex.get(isin)
 
-        result[isin] = {
+        result.append({
+            "ISIN": isin,
             "price": price,
-            "target": target
-        }
+            "target": bond.get("SellPrice")
+        })
 
     return result
 
@@ -175,13 +174,11 @@ async def price(update, context):
 
     text = "Bond prices:\n\n"
 
-    for isin, data in bonds.items():
+    for bond in bonds:
 
-        text += f"{isin}\n"
-
-        text += f"price: {data['price']}\n"
-
-        text += f"target: {data['target']}\n\n"
+        text += f"{bond['ISIN']}\n"
+        text += f"price: {bond['price']}\n"
+        text += f"target: {bond['target']}\n\n"
 
     await update.message.reply_text(text)
 
@@ -201,15 +198,15 @@ async def monitor(context):
     bonds = load_bonds()
     moex = load_moex_prices()
 
-    for isin, info in bonds.items():
+    for bond in bonds:
 
-        target = info.get("SellPrice")
-        name = info.get("Название")
+        isin = bond["ISIN"]
+        target = bond.get("SellPrice")
+        name = bond.get("Название")
         price = moex.get(isin)
 
         print(isin, "price:", price, "target:", target)
 
-        # пропускаем если нет цены продажи
         if target is None or pd.isna(target):
             continue
 
@@ -225,13 +222,13 @@ async def monitor(context):
         if price >= target and isin not in sent_signals:
 
             text = f"""
-    SELL SIGNAL
+SELL SIGNAL
 
-    {isin}
-    name: {name}
-    price: {price}
-    target: {target}
-    """
+{isin}
+name: {name}
+price: {price}
+target: {target}
+"""
 
             print("SIGNAL:", isin)
 
@@ -243,7 +240,6 @@ async def monitor(context):
         elif price < target and isin in sent_signals:
 
             print("Reset signal for", isin)
-
             sent_signals.remove(isin)
 
 # -----------------------
@@ -259,13 +255,12 @@ async def send_report(context):
 
     rows = []
 
-    for isin, info in bonds.items():
+    for bond in bonds:
 
+        isin = bond["ISIN"]
         price = moex.get(isin)
+        avg_price = bond.get("Средняя цена")
 
-        avg_price = info.get("Средняя цена")
-
-        # расчет дохода
         income = None
 
         if price is not None and avg_price is not None:
@@ -275,19 +270,18 @@ async def send_report(context):
                 income = None
 
         rows.append({
-            "Название": info.get("Название"),
+            "Название": bond.get("Название"),
             "ISIN": isin,
-            "Price": price,
-            "SellPrice": info.get("SellPrice"),
-            "Депозиты Банка": info.get("Депозиты Банка"),	
-            "Фио": info.get("Фио"),
-            "Рейтинг": info.get("Рейтинг"),
-            "Кол-во обл": info.get("Кол-во обл"),
+            "Цена": price,
+            "Продать не ниже, в %": bond.get("SellPrice"),
+            "Депозиты Банка": bond.get("Депозиты Банка"),
+            "Фио": bond.get("Фио"),
+            "Рейтинг": bond.get("Рейтинг"),
+            "Кол-во обл": bond.get("Кол-во обл"),
             "Средняя цена": avg_price,
-            "ТКД": info.get("ТКД"),
-            "Дата оферты": info.get("Дата оферты"),
-            "Спекуляции": info.get("Спекуляции"),
-
+            "ТКД": bond.get("ТКД"),
+            "Дата оферты": bond.get("Дата оферты"),
+            "Спекуляции": bond.get("Спекуляции"),
             "Доход": income
         })
 
@@ -304,7 +298,6 @@ async def send_report(context):
             chat_id=chat_id,
             document=open(file, "rb")
         )
-
 
 # -----------------------
 # запуск
