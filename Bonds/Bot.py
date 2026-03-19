@@ -46,9 +46,9 @@ def load_bonds_from_yadisk():
         # читаем Excel
         df = pd.read_excel(BytesIO(file.content))
         df = df[
-        df["ISIN"].notna() & 
-        (df["ISIN"] != "") & 
-        (df["ISIN"] != "-")
+    df["ISIN"].notna() & 
+    (df["ISIN"] != "") & 
+    (df["ISIN"] != "-")
 ]
         # обновляем кеш
         _cache["df"] = df
@@ -99,101 +99,33 @@ def load_bonds():
 
     return bonds
 
-def is_ofz(x):
-    return str(x).startswith("SU")
-
-
-def load_full_board(board):
-
-    all_marketdata = []
-    all_securities = []
-
-    start = 0
-    step = 100
-
-    while True:
-
-        url = f"https://iss.moex.com/iss/engines/stock/markets/bonds/boards/{board}/securities.json"
-
-        params = {
-            "iss.meta": "off",
-            "iss.only": "marketdata,securities",
-            "marketdata.columns": "SECID,LAST,PREVPRICE",
-            "securities.columns": "SECID,ISIN",
-            "start": start
-        }
-
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json()
-
-        md = data.get("marketdata", {}).get("data", [])
-        sec = data.get("securities", {}).get("data", [])
-
-        if not md:
-            break
-
-        all_marketdata.extend(md)
-        all_securities.extend(sec)
-
-        start += step
-
-    return all_marketdata, all_securities
 # -----------------------
 # загрузка цен МОЕХ
 # -----------------------
 
-def load_moex_prices(bonds):
+def load_moex_prices():
+
+    url = "https://iss.moex.com/iss/engines/stock/markets/bonds/securities.json"
+
+    params = {
+        "iss.meta": "off",
+        "marketdata.columns": "SECID,LAST"
+    }
 
     print("Request MOEX prices")
 
-    ofz = [str(b["ISIN"]).strip() for b in bonds if is_ofz(b["ISIN"])]
-    corp = [str(b["ISIN"]).strip() for b in bonds if not is_ofz(b["ISIN"])]
+    r = requests.get(url, params=params, timeout=10)
 
-    print("OFZ:", len(ofz), "CORP:", len(corp))
+    data = r.json()
 
     prices = {}
 
-    # ========= КОРПОРАТЫ =========
-    if corp:
-        try:
-            md, sec = load_full_board("TQCB")
+    for row in data["marketdata"]["data"]:
 
-            secid_to_isin = {row[0]: row[1] for row in sec if len(row) >= 2}
+        secid = row[0]
+        price = row[1]
 
-            for row in md:
-                if len(row) < 3:
-                    continue
-
-                secid, last, prev = row
-                isin = secid_to_isin.get(secid)
-
-                if isin in corp:
-                    price = last if last is not None else prev
-                    prices[isin] = price
-
-        except Exception as e:
-            print("Corp MOEX error:", e)
-
-    # ========= ОФЗ =========
-    if ofz:
-        try:
-            md, _ = load_full_board("TQOB")
-
-            for row in md:
-                if len(row) < 3:
-                    continue
-
-                secid, last, prev = row
-
-                if secid in ofz:
-                    price = last if last is not None else prev
-                    prices[secid] = price
-
-        except Exception as e:
-            print("OFZ MOEX error:", e)
-
-    print("FOUND:", len(prices))
-    print("SAMPLE:", list(prices.keys())[:10])
+        prices[secid] = price
 
     return prices
 
@@ -205,7 +137,7 @@ def load_moex_prices(bonds):
 def get_prices():
 
     bonds = load_bonds()
-    moex = load_moex_prices(bonds)
+    moex = load_moex_prices()
 
     result = []
 
@@ -268,7 +200,7 @@ async def monitor(context):
     print("Check prices")
 
     bonds = load_bonds()
-    moex = load_moex_prices(bonds)
+    moex = load_moex_prices()
 
     for bond in bonds:
 
@@ -323,7 +255,7 @@ async def send_report(context):
     print("Generate report")
 
     bonds = load_bonds()
-    moex = load_moex_prices(bonds)
+    moex = load_moex_prices()
 
     rows = []
 
