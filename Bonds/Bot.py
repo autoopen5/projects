@@ -111,69 +111,70 @@ def load_moex_prices(bonds):
 
     print("Request MOEX prices")
 
-    # делим бумаги
     ofz = [b["ISIN"] for b in bonds if is_ofz(b["ISIN"])]
     corp = [b["ISIN"] for b in bonds if not is_ofz(b["ISIN"])]
-    
+
     print("OFZ:", len(ofz), "CORP:", len(corp))
-    
+
     prices = {}
-    
+
     # ========= КОРПОРАТЫ =========
     if corp:
-        url = "https://iss.moex.com/iss/securities.json"
-
-        params = {
-            "securities": ",".join(corp),
-            "iss.meta": "off",
-            "iss.only": "marketdata",
-            "marketdata.columns": "SECID,ISIN,LAST,PREVPRICE"
-        }
-
         try:
+            url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json"
+
+            params = {
+                "securities": ",".join(corp),
+                "iss.meta": "off",
+                "iss.only": "marketdata",
+                "marketdata.columns": "SECID,LAST,PREVPRICE"
+            }
+
             r = requests.get(url, params=params, timeout=10)
             data = r.json()
 
-            for row in data["marketdata"]["data"]:
-                secid = row[0]
-                isin = row[1]
-                last = row[2]
-                prev = row[3]
+            md = data.get("marketdata", {}).get("data", [])
+
+            for row in md:
+                if len(row) < 3:
+                    continue
+
+                secid, last, prev = row
 
                 price = last if last is not None else prev
-
-                prices[isin] = price
+                prices[secid] = price
 
         except Exception as e:
             print("Corp MOEX error:", e)
 
     # ========= ОФЗ =========
     if ofz:
-        url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json"
-
-        params = {
-            "securities": ",".join(ofz),
-            "iss.meta": "off",
-            "iss.only": "marketdata",
-            "marketdata.columns": "SECID,LAST,PREVPRICE"
-        }
-
         try:
+            url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json"
+
+            params = {
+                "securities": ",".join(ofz),
+                "iss.meta": "off",
+                "iss.only": "marketdata",
+                "marketdata.columns": "SECID,LAST,PREVPRICE"
+            }
+
             r = requests.get(url, params=params, timeout=10)
             data = r.json()
 
-            for row in data["marketdata"]["data"]:
-                secid = row[0]
-                last = row[1]
-                prev = row[2]
+            md = data.get("marketdata", {}).get("data", [])
+
+            for row in md:
+                if len(row) < 3:
+                    continue
+
+                secid, last, prev = row
 
                 price = last if last is not None else prev
-
                 prices[secid] = price
 
         except Exception as e:
             print("OFZ MOEX error:", e)
-
 
     return prices
 
