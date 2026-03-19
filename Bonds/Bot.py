@@ -103,6 +103,41 @@ def is_ofz(x):
     return str(x).startswith("SU")
 
 
+def load_full_board(board):
+
+    all_marketdata = []
+    all_securities = []
+
+    start = 0
+    step = 100
+
+    while True:
+
+        url = f"https://iss.moex.com/iss/engines/stock/markets/bonds/boards/{board}/securities.json"
+
+        params = {
+            "iss.meta": "off",
+            "iss.only": "marketdata,securities",
+            "marketdata.columns": "SECID,LAST,PREVPRICE",
+            "securities.columns": "SECID,ISIN",
+            "start": start
+        }
+
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+
+        md = data.get("marketdata", {}).get("data", [])
+        sec = data.get("securities", {}).get("data", [])
+
+        if not md:
+            break
+
+        all_marketdata.extend(md)
+        all_securities.extend(sec)
+
+        start += step
+
+    return all_marketdata, all_securities
 # -----------------------
 # загрузка цен МОЕХ
 # -----------------------
@@ -111,8 +146,8 @@ def load_moex_prices(bonds):
 
     print("Request MOEX prices")
 
-    ofz = [b["ISIN"] for b in bonds if is_ofz(b["ISIN"])]
-    corp = [b["ISIN"] for b in bonds if not is_ofz(b["ISIN"])]
+    ofz = [str(b["ISIN"]).strip() for b in bonds if is_ofz(b["ISIN"])]
+    corp = [str(b["ISIN"]).strip() for b in bonds if not is_ofz(b["ISIN"])]
 
     print("OFZ:", len(ofz), "CORP:", len(corp))
 
@@ -121,30 +156,10 @@ def load_moex_prices(bonds):
     # ========= КОРПОРАТЫ =========
     if corp:
         try:
-            url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json"
+            md, sec = load_full_board("TQCB")
 
-            params = {
-                "iss.meta": "off",
-                "iss.only": "marketdata,securities",
-                "marketdata.columns": "SECID,LAST,PREVPRICE",
-                "securities.columns": "SECID,ISIN"
-            }
+            secid_to_isin = {row[0]: row[1] for row in sec if len(row) >= 2}
 
-            r = requests.get(url, params=params, timeout=10)
-            data = r.json()
-
-            md = data.get("marketdata", {}).get("data", [])
-            sec = data.get("securities", {}).get("data", [])
-
-            # делаем маппинг SECID → ISIN
-            secid_to_isin = {}
-            for row in sec:
-                if len(row) < 2:
-                    continue
-                secid, isin = row
-                secid_to_isin[secid] = isin
-
-            # теперь связываем цены с ISIN
             for row in md:
                 if len(row) < 3:
                     continue
@@ -162,18 +177,7 @@ def load_moex_prices(bonds):
     # ========= ОФЗ =========
     if ofz:
         try:
-            url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json"
-
-            params = {
-                "iss.meta": "off",
-                "iss.only": "marketdata",
-                "marketdata.columns": "SECID,LAST,PREVPRICE"
-            }
-
-            r = requests.get(url, params=params, timeout=10)
-            data = r.json()
-
-            md = data.get("marketdata", {}).get("data", [])
+            md, _ = load_full_board("TQOB")
 
             for row in md:
                 if len(row) < 3:
@@ -187,7 +191,7 @@ def load_moex_prices(bonds):
 
         except Exception as e:
             print("OFZ MOEX error:", e)
-    
+
     print("FOUND:", len(prices))
     print("SAMPLE:", list(prices.keys())[:10])
 
