@@ -322,12 +322,12 @@ def main():
     )
     app.job_queue.run_daily(
     send_report,
-    time=datetime.time(hour=12, minute=0)
+    time=datetime.time(hour=9, minute=0)
     )
 
     app.job_queue.run_daily(
         send_report,
-        time=datetime.time(hour=18, minute=0)
+        time=datetime.time(hour=15, minute=0)
     )
     
     print("BOT STARTED")
