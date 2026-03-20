@@ -17,7 +17,7 @@ subscribers = set()
 sent_signals = set()
 
 
-PUBLIC_KEY = "https://disk.yandex.ru/i/lUBDhlSS469W3Q" # твоя ссылка
+PUBLIC_KEY = "https://disk.yandex.ru/i/fmYpE_IxsKQN2A" # твоя ссылка
 
 _cache = {
     "df": None,
