@@ -16,8 +16,8 @@ INTERVAL = 300
 subscribers = set()
 sent_signals = set()
 
-
-PUBLIC_KEY = "https://disk.yandex.ru/i/2vPKVDCLTThDww" # твоя ссылка
+# https://disk.yandex.ru/i/2vPKVDCLTThDww gfgby xlsx
+PUBLIC_KEY = "https://disk.yandex.ru/d/ejWF4wGI3-0cww" # твоя ссылка
 
 _cache = {
     "df": None,
@@ -28,42 +28,42 @@ CACHE_TTL = 300  # 5 минут
 
 
 def load_bonds_from_yadisk():
-    # кеш (чтобы не дергать диск каждый раз)
+
     if _cache["df"] is not None and time.time() - _cache["timestamp"] < CACHE_TTL:
         return _cache["df"]
 
     try:
-        # получаем download URL
         url = "https://cloud-api.yandex.net/v1/disk/public/resources/download"
         params = {"public_key": PUBLIC_KEY}
 
         response = requests.get(url, params=params, timeout=10)
-        download_url = response.json()["href"]
+        data = response.json()
 
-        # скачиваем файл
+        if "href" not in data:
+            print("Yandex error:", data)
+            return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
+
+        download_url = data["href"]
+
         file = requests.get(download_url, timeout=10)
 
-        # читаем Excel
-        df = pd.read_excel(BytesIO(file.content))
+        # читаем как CSV
+        df = pd.read_csv(BytesIO(file.content))
+
         df = df[
-    df["ISIN"].notna() & 
-    (df["ISIN"] != "") & 
-    (df["ISIN"] != "-")
-]
-        # обновляем кеш
+            df["ISIN"].notna() &
+            (df["ISIN"] != "") &
+            (df["ISIN"] != "-")
+        ]
+
         _cache["df"] = df
         _cache["timestamp"] = time.time()
 
         return df
 
     except Exception as e:
-        print("Ошибка загрузки bonds.xlsx:", e)
-
-        # fallback: вернуть старые данные если есть
-        if _cache["df"] is not None:
-            return _cache["df"]
-
-        return pd.DataFrame()
+        print("Ошибка загрузки CSV:", e)
+        return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
     
 # -----------------------
 # загрузка Excel
