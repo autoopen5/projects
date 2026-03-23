@@ -48,7 +48,7 @@ def load_bonds_from_yadisk():
         file = requests.get(download_url, timeout=10)
 
         # читаем как CSV
-        df = pd.read_csv(BytesIO(file.content))
+        df = pd.read_csv(BytesIO(file.content), sep=';')
 
         df = df[
             df["ISIN"].notna() &
