@@ -117,25 +117,19 @@ def load_moex_data():
     r = requests.get(url, params=params, timeout=10)
     data = r.json()
 
-    columns = data["marketdata"]["columns"]
-    rows = data["marketdata"]["data"]
-
     result = {}
 
-    for row in rows:
+    for row in data["marketdata"]["data"]:
+        secid = row[0]
+        last = row[1]
+        ytm = row[2]
+        ytm_offer = row[3]
 
-        row_dict = dict(zip(columns, row))
-
-        secid = row_dict.get("SECID")
-        last = row_dict.get("LAST")
-        ytm = row_dict.get("YIELD")
-        ytm_offer = row_dict.get("YIELD_OFFER")
-
-        # безопасный выбор доходности
-        if ytm_offer is not None and ytm_offer > 0:
+        # выбор правильной доходности
+        if ytm_offer and ytm_offer > 0:
             final_ytm = ytm_offer
             ytm_type = "offer"
-        elif ytm is not None and ytm > 0:
+        elif ytm and ytm > 0:
             final_ytm = ytm
             ytm_type = "maturity"
         else:
