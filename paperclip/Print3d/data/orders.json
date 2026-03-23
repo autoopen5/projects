@@ -1,0 +1,66 @@
+{
+  "ORD-0001": {
+    "order_id": "ORD-0001",
+    "source": "direct",
+    "customer": {
+      "user_id": "498798670",
+      "chat_id": 498798670,
+      "contact": "+79263774735"
+    },
+    "product_type": "детская игрушка",
+    "example": "",
+    "dimensions_mm": [
+      120,
+      45,
+      20
+    ],
+    "material": "PETG",
+    "color": "синий",
+    "quantity": 1,
+    "deadline": "standard",
+    "postproc": "none",
+    "delivery_mode": "cdek",
+    "estimate": {
+      "material_g": 26.78,
+      "print_hours": 1.8
+    },
+    "quote_total_rub": 1164.27,
+    "deposit_required_rub": 582.14,
+    "deposit_status": "PENDING",
+    "status": "WAITING_DEPOSIT",
+    "created_at": "2026-03-22T20:35:52.707066+00:00",
+    "updated_at": "2026-03-22T20:35:52.707066+00:00"
+  },
+  "ORD-0002": {
+    "order_id": "ORD-0002",
+    "source": "direct",
+    "customer": {
+      "user_id": "498798670",
+      "chat_id": 498798670,
+      "contact": "+79263774735"
+    },
+    "product_type": "статуэтка",
+    "example": "",
+    "dimensions_mm": [
+      120,
+      45,
+      20
+    ],
+    "material": "PETG",
+    "color": "синий",
+    "quantity": 1,
+    "deadline": "standard",
+    "postproc": "none",
+    "delivery_mode": "cdek",
+    "estimate": {
+      "material_g": 26.78,
+      "print_hours": 1.8
+    },
+    "quote_total_rub": 1164.27,
+    "deposit_required_rub": 582.14,
+    "deposit_status": "PENDING",
+    "status": "WAITING_DEPOSIT",
+    "created_at": "2026-03-22T20:47:55.634957+00:00",
+    "updated_at": "2026-03-22T20:47:55.634957+00:00"
+  }
+}

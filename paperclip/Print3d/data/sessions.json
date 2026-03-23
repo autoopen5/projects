@@ -1,0 +1,24 @@
+{
+  "498798670": {
+    "step": "await_deposit_proof",
+    "source": "direct",
+    "answers": {
+      "product_type": "статуэтка",
+      "example": "",
+      "dimensions_mm": [
+        120,
+        45,
+        20
+      ],
+      "material": "PETG",
+      "color": "синий",
+      "deadline": "standard",
+      "quantity": 1,
+      "postproc": "none",
+      "contact": "+79263774735",
+      "delivery_mode": "cdek"
+    },
+    "chat_id": 498798670,
+    "order_id": "ORD-0002"
+  }
+}

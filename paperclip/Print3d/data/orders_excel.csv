@@ -1,0 +1,3 @@
+﻿order_id,created_at,updated_at,source,customer_user_id,customer_chat_id,contact,product_type,example,dimensions_mm,material,color,quantity,deadline,postproc,delivery_mode,estimate_material_g,estimate_print_hours,quote_total_rub,deposit_required_rub,deposit_status,status,model_approval_status
+ORD-0001,2026-03-22T20:35:52.707066+00:00,2026-03-22T20:35:52.707066+00:00,direct,498798670,498798670,+79263774735,детская игрушка,,120x45x20,PETG,синий,1,standard,none,cdek,26.78,1.8,1164.27,582.14,PENDING,WAITING_DEPOSIT,
+ORD-0002,2026-03-22T20:47:55.634957+00:00,2026-03-22T20:47:55.634957+00:00,direct,498798670,498798670,+79263774735,статуэтка,,120x45x20,PETG,синий,1,standard,none,cdek,26.78,1.8,1164.27,582.14,PENDING,WAITING_DEPOSIT,

@@ -34,7 +34,7 @@ def iter_polygons(geom):
     else:
         return
 
-geojson_path = r'C:/Users/SatyaTR/Desktop/OSMB2.geojson'  # ваш файл
+geojson_path = r'C:/Users/Ilya/Downloads/OSMB_UzhniyOkr_Other/OSMB_UzhniyOkr_Other'  # ваш файл
 
 with open(geojson_path, 'r', encoding='utf-8') as f:
     gj = json.load(f)
