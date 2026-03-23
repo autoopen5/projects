@@ -103,142 +103,32 @@ def load_bonds():
 # загрузка цен МОЕХ
 # -----------------------
 
-def load_moex_data():
+def load_moex_prices():
 
     url = "https://iss.moex.com/iss/engines/stock/markets/bonds/securities.json"
 
     params = {
         "iss.meta": "off",
-        "marketdata.columns": "SECID,LAST,YIELD,YIELD_OFFER"
+        "marketdata.columns": "SECID,LAST"
     }
 
-    print("Request MOEX data")
+    print("Request MOEX prices")
 
     r = requests.get(url, params=params, timeout=10)
+
     data = r.json()
 
-    columns = data["marketdata"]["columns"]
-    rows = data["marketdata"]["data"]
+    prices = {}
 
-    result = {}
+    for row in data["marketdata"]["data"]:
 
-    for row in rows:
+        secid = row[0]
+        price = row[1]
 
-        row_dict = dict(zip(columns, row))
+        prices[secid] = price
 
-        secid = row_dict.get("SECID")
-        last = row_dict.get("LAST")
-        ytm = row_dict.get("YIELD")
-        ytm_offer = row_dict.get("YIELD_OFFER")
+    return prices
 
-        # безопасный выбор доходности
-        if ytm_offer is not None and ytm_offer > 0:
-            final_ytm = ytm_offer
-            ytm_type = "offer"
-        elif ytm is not None and ytm > 0:
-            final_ytm = ytm
-            ytm_type = "maturity"
-        else:
-            final_ytm = None
-            ytm_type = None
-
-        result[secid] = {
-            "price": last,
-            "ytm": final_ytm,
-            "ytm_type": ytm_type
-        }
-
-    return result
-
-# def load_moex_prices():
-
-#     url = "https://iss.moex.com/iss/engines/stock/markets/bonds/securities.json"
-
-#     params = {
-#         "iss.meta": "off",
-#         "marketdata.columns": "SECID,LAST"
-#     }
-
-#     print("Request MOEX prices")
-
-#     r = requests.get(url, params=params, timeout=10)
-
-#     data = r.json()
-
-#     prices = {}
-
-#     for row in data["marketdata"]["data"]:
-
-#         secid = row[0]
-#         price = row[1]
-
-#         prices[secid] = price
-
-#     return prices
-
-# -----------------------
-# поиск альтернатив при цене выше обозначенной
-# -----------------------
-
-RATING_ORDER = [
-    "AAA", "AA+", "AA", "AA-",
-    "A+", "A", "A-",
-    "BBB+", "BBB", "BBB-"
-]
-
-def rating_ok(rating):
-    if not isinstance(rating, str):
-        return False
-    rating = rating.strip().upper()
-    return rating in RATING_ORDER[:7]  # до A-
-
-def calc_score(ytm, rating):
-    penalty = 0
-
-    if rating in ["A-"]:
-        penalty += 0.3
-    elif rating in ["BBB+", "BBB"]:
-        penalty += 0.6
-
-    return ytm - penalty
-
-def find_alternatives(all_bonds, moex_data, current_ytm):
-
-    candidates = []
-
-    for bond in all_bonds:
-
-        isin = bond["ISIN"]
-        rating = bond.get("Рейтинг")
-
-        moex = moex_data.get(isin)
-        if not moex:
-            continue
-
-        ytm = moex.get("ytm")
-
-        if not ytm or not rating:
-            continue
-
-        if not rating_ok(rating):
-            continue
-
-        if current_ytm and ytm <= current_ytm:
-            continue
-
-        score = calc_score(ytm, rating)
-
-        candidates.append({
-            "name": bond.get("Название"),
-            "isin": isin,
-            "ytm": ytm,
-            "rating": rating,
-            "score": score
-        })
-
-    candidates.sort(key=lambda x: x["score"], reverse=True)
-
-    return candidates[:3]
 
 # -----------------------
 # собрать цены нужных бумаг
@@ -284,18 +174,15 @@ async def price(update, context):
 
     print("/price command")
 
-    bonds = load_bonds()
-    moex_data = load_moex_data()
+    bonds = get_prices()
 
     text = "Bond prices:\n\n"
 
     for bond in bonds:
-        moex = moex_data.get(bond["ISIN"], {})
 
         text += f"{bond['ISIN']}\n"
-        text += f"price: {moex.get('price')}\n"
-        text += f"ytm: {moex.get('ytm')} ({moex.get('ytm_type')})\n"
-        text += f"target: {bond.get('SellPrice')}\n\n"    
+        text += f"price: {bond['price']}\n"
+        text += f"target: {bond['target']}\n\n"
 
     await update.message.reply_text(text)
 
@@ -313,25 +200,16 @@ async def monitor(context):
     print("Check prices")
 
     bonds = load_bonds()
-    moex_data = load_moex_data()
+    moex = load_moex_prices()
 
     for bond in bonds:
 
         isin = bond["ISIN"]
         target = bond.get("SellPrice")
         name = bond.get("Название")
-        rating = bond.get("Рейтинг")
+        price = moex.get(isin)
 
-        moex = moex_data.get(isin)
-
-        if not moex:
-            continue
-
-        price = moex.get("price")
-        ytm = moex.get("ytm")
-        ytm_type = moex.get("ytm_type")
-
-        print(isin, "price:", price, "target:", target, "ytm:", ytm)
+        print(isin, "price:", price, "target:", target)
 
         if target is None or pd.isna(target):
             continue
@@ -347,28 +225,14 @@ async def monitor(context):
 
         if price >= target and isin not in sent_signals:
 
-            # ищем альтернативы
-            alternatives = find_alternatives(bonds, moex_data, ytm)
-
             text = f"""
-📈 SELL SIGNAL
+SELL SIGNAL
 
 {isin}
-{name}
-
-Цена: {price:.2f} (цель {target})
-Рейтинг: {rating}
-
-Доходность ({ytm_type}): {round(ytm,2) if ytm else "N/A"}%
-
-🔄 Альтернативы:
+name: {name}
+price: {price}
+target: {target}
 """
-
-            if not alternatives:
-                text += "\nНет лучших вариантов"
-            else:
-                for i, alt in enumerate(alternatives, 1):
-                    text += f"\n{i}. {alt['name']} ({alt['isin']}) — {round(alt['ytm'],2)}% ({alt['rating']})"
 
             print("SIGNAL:", isin)
 
@@ -391,22 +255,14 @@ async def send_report(context):
     print("Generate report")
 
     bonds = load_bonds()
-    moex_data = load_moex_data()
+    moex = load_moex_prices()
 
     rows = []
 
     for bond in bonds:
 
         isin = bond["ISIN"]
-        name = bond.get("Название")
-        rating = bond.get("Рейтинг")
-
-        moex = moex_data.get(isin, {})
-
-        price = moex.get("price")
-        ytm = moex.get("ytm")
-        ytm_type = moex.get("ytm_type")
-
+        price = moex.get(isin)
         avg_price = bond.get("Средняя цена")
 
         income = None
@@ -417,48 +273,26 @@ async def send_report(context):
             except:
                 income = None
 
-        # скоринг
-        score = None
-        if ytm and rating:
-            try:
-                score = calc_score(float(ytm), rating)
-            except:
-                score = None
-
-        # поиск лучшей альтернативы
-        best_alt = None
-        if ytm:
-            alternatives = find_alternatives(bonds, moex_data, ytm)
-            if alternatives:
-                best_alt = alternatives[0]
-
         rows.append({
-            "Название": name,
+            "Название": bond.get("Название"),
             "ISIN": isin,
             "Цена": price,
-            "YTM": ytm,
-            "Тип YTM": ytm_type,
-            "Score": score,
-            "Лучшая альтернатива": best_alt["isin"] if best_alt else None,
-            "YTM альтернативы": best_alt["ytm"] if best_alt else None,
-            "Рейтинг": rating,
             "Продать не ниже, в %": bond.get("SellPrice"),
-            "Средняя цена": avg_price,
-            "Доход": income,
+            "Депозиты Банка": bond.get("Депозиты Банка"),
+            "Фио": bond.get("Фио"),
+            "Рейтинг": bond.get("Рейтинг"),
             "Кол-во обл": bond.get("Кол-во обл"),
+            "Средняя цена": avg_price,
             "ТКД": bond.get("ТКД"),
             "Дата оферты": bond.get("Дата оферты"),
             "Спекуляции": bond.get("Спекуляции"),
-            "Фио": bond.get("Фио"),
-            "Депозиты Банка": bond.get("Депозиты Банка")
+            "Доход": income
         })
 
     df = pd.DataFrame(rows)
 
-    # сортировка — самые интересные сверху
-    df = df.sort_values(by="Score", ascending=False, na_position="last")
-
     file = "bond_report.xlsx"
+
     df.to_excel(file, index=False)
 
     print("Report created:", file)
