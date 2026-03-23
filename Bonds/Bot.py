@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler
 
 TOKEN = "8691798405:AAGzC1Ooe90EI6J6JkeRuZ5wQGyP_3UxZh4"
 
-FILE = "bonds.xlsx"
+# FILE = "bonds.xlsx"
 INTERVAL = 300
 
 
