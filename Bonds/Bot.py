@@ -16,8 +16,8 @@ INTERVAL = 300
 subscribers = set()
 sent_signals = set()
 
-# https://disk.yandex.ru/i/2vPKVDCLTThDww gfgby xlsx
-PUBLIC_KEY = "https://disk.yandex.ru/d/ejWF4wGI3-0cww" # твоя ссылка
+# https://disk.yandex.ru/d/ejWF4wGI3-0cww  gfgby xlsx
+PUBLIC_KEY = "https://disk.yandex.ru/i/2vPKVDCLTThDww" # твоя ссылка
 
 _cache = {
     "df": None,
@@ -33,6 +33,7 @@ def load_bonds_from_yadisk():
         return _cache["df"]
 
     try:
+        # 🔥 используем ТВОЙ /i/
         url = "https://cloud-api.yandex.net/v1/disk/public/resources/download"
         params = {"public_key": PUBLIC_KEY}
 
@@ -40,16 +41,25 @@ def load_bonds_from_yadisk():
         data = response.json()
 
         if "href" not in data:
-            print("Yandex error:", data)
+            print("❌ Yandex error:", data)
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
         download_url = data["href"]
 
+        print("Download URL:", download_url)
+
         file = requests.get(download_url, timeout=10)
 
-        # читаем как CSV
-        df = pd.read_csv(BytesIO(file.content), sep=';')
+        # 🔥 проверяем что это XLSX
+        if not file.content.startswith(b'PK'):
+            print("❌ Not XLSX!")
+            print(file.content[:200])
+            return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
+        # 🔥 читаем аккуратно
+        df = pd.read_excel(BytesIO(file.content), engine="openpyxl")
+
+        # фильтр
         df = df[
             df["ISIN"].notna() &
             (df["ISIN"] != "") &
@@ -61,6 +71,9 @@ def load_bonds_from_yadisk():
 
         return df
 
+    except Exception as e:
+        print("Ошибка загрузки:", e)
+        return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
     except Exception as e:
         print("Ошибка загрузки CSV:", e)
         return _cache["df"] if _cache["df"] is not None else pd.DataFrame()

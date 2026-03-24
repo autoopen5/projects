@@ -92,12 +92,33 @@ class Config:
     token: str
     admin_chat_id: str | None
     payment_instructions: str
+    tripo_api_key: str | None
+    tripo_api_url: str
+    tripo_model_version: str
+    tripo_poll_attempts: int
+    printer_dispatch_webhook_url: str | None
+    printer_dispatch_token: str | None
+    auto_dispatch_on_approval: bool
     openai_api_key: str | None
     openai_model: str
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def load_local_env(path: Path) -> None:
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().lstrip("\ufeff")
+        value = value.strip().strip("'").strip('"')
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -196,12 +217,27 @@ def load_config() -> Config:
         "PAYMENT_INSTRUCTIONS",
         "Внесите предоплату 50% по согласованным реквизитам и отправьте скриншот оплаты в этот чат.",
     ).strip()
+    tripo_api_key = os.getenv("TRIPO_API_KEY", "").strip() or None
+    tripo_api_url = os.getenv("TRIPO_API_URL", "https://api.tripo3d.ai/v2/openapi/task").strip()
+    tripo_model_version = os.getenv("TRIPO_MODEL_VERSION", "auto").strip() or "auto"
+    tripo_poll_attempts_raw = os.getenv("TRIPO_POLL_ATTEMPTS", "8").strip()
+    tripo_poll_attempts = int(tripo_poll_attempts_raw) if tripo_poll_attempts_raw.isdigit() else 8
+    printer_dispatch_webhook_url = os.getenv("PRINTER_DISPATCH_WEBHOOK_URL", "").strip() or None
+    printer_dispatch_token = os.getenv("PRINTER_DISPATCH_TOKEN", "").strip() or None
+    auto_dispatch_on_approval = os.getenv("AUTO_DISPATCH_ON_APPROVAL", "").strip().lower() in {"1", "true", "yes", "on"}
     openai_api_key = os.getenv("OPENAI_API_KEY", "").strip() or None
     openai_model = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
     return Config(
         token=token,
         admin_chat_id=admin_chat_id,
         payment_instructions=payment_instructions,
+        tripo_api_key=tripo_api_key,
+        tripo_api_url=tripo_api_url,
+        tripo_model_version=tripo_model_version,
+        tripo_poll_attempts=max(1, min(tripo_poll_attempts, 30)),
+        printer_dispatch_webhook_url=printer_dispatch_webhook_url,
+        printer_dispatch_token=printer_dispatch_token,
+        auto_dispatch_on_approval=auto_dispatch_on_approval,
         openai_api_key=openai_api_key,
         openai_model=openai_model,
     )
@@ -235,10 +271,22 @@ class TgClient:
 
 class ModelConstructor:
     def __init__(self, cfg: Config) -> None:
+        self.tripo_api_key = cfg.tripo_api_key
+        self.tripo_api_url = cfg.tripo_api_url
+        self.tripo_model_version = cfg.tripo_model_version
+        self.tripo_poll_attempts = cfg.tripo_poll_attempts
         self.openai_api_key = cfg.openai_api_key
         self.openai_model = cfg.openai_model
 
     def build(self, order: dict[str, Any], revision_note: str | None = None) -> dict[str, Any]:
+        if self.tripo_api_key:
+            try:
+                text = self.build_with_tripo(order, revision_note)
+                return {"mode": "tripo", "text": text, "generated_at": now_iso()}
+            except urllib.error.HTTPError as e:
+                return {"mode": "tripo_error", "text": self.describe_tripo_http_error(e), "generated_at": now_iso()}
+            except Exception:  # noqa: BLE001
+                pass
         if self.openai_api_key:
             try:
                 text = self.build_with_openai(order, revision_note)
@@ -246,6 +294,150 @@ class ModelConstructor:
             except Exception:  # noqa: BLE001
                 pass
         return {"mode": "heuristic", "text": self.build_heuristic(order, revision_note), "generated_at": now_iso()}
+
+    def build_with_tripo(self, order: dict[str, Any], revision_note: str | None) -> str:
+        prompt = self.build_tripo_prompt(order, revision_note)
+        payload: dict[str, Any] = {
+            "type": "text_to_model",
+            "prompt": prompt,
+        }
+        if self.tripo_model_version != "auto":
+            payload["model_version"] = self.tripo_model_version
+
+        create_req = urllib.request.Request(
+            url=self.tripo_api_url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.tripo_api_key}",
+                "x-api-key": self.tripo_api_key or "",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(create_req, timeout=35) as resp:
+            created = json.loads(resp.read().decode("utf-8"))
+
+        task_id = self.extract_task_id(created)
+        model_url = self.extract_model_url(created)
+        if model_url:
+            return self.format_tripo_result(task_id, model_url)
+
+        if not task_id:
+            raise RuntimeError(f"Tripo create response missing task_id: {created}")
+
+        task_url = f"{self.tripo_api_url.rstrip('/')}/{task_id}"
+        last_status = "SUBMITTED"
+        for _ in range(self.tripo_poll_attempts):
+            time.sleep(2)
+            poll_req = urllib.request.Request(
+                url=task_url,
+                method="GET",
+                headers={
+                    "Authorization": f"Bearer {self.tripo_api_key}",
+                    "x-api-key": self.tripo_api_key or "",
+                },
+            )
+            with urllib.request.urlopen(poll_req, timeout=35) as resp:
+                polled = json.loads(resp.read().decode("utf-8"))
+            last_status = self.extract_status(polled)
+            model_url = self.extract_model_url(polled)
+            if model_url:
+                return self.format_tripo_result(task_id, model_url)
+            if last_status in {"FAILED", "ERROR", "CANCELLED"}:
+                raise RuntimeError(f"Tripo task {task_id} failed with status={last_status}")
+
+        return (
+            "Tripo task submitted.\n"
+            f"- task_id: {task_id}\n"
+            f"- status: {last_status}\n"
+            "Model is still processing. Please check task status a bit later."
+        )
+
+    def build_tripo_prompt(self, order: dict[str, Any], revision_note: str | None) -> str:
+        dims = order["dimensions_mm"]
+        revision = f" Revision: {revision_note}." if revision_note else ""
+        return (
+            f"Create a printable 3D model for: {order['product_type']}. "
+            f"Target dimensions around {dims[0]}x{dims[1]}x{dims[2]} mm. "
+            f"Material intent: {order['material']}, color preference: {order['color']}. "
+            f"Quantity: {order['quantity']}, post-processing: {order['postproc']}. "
+            "Prioritize manufacturable geometry and avoid impossible overhangs."
+            f"{revision}"
+        )
+
+    def format_tripo_result(self, task_id: str | None, model_url: str) -> str:
+        task_line = f"- task_id: {task_id}\n" if task_id else ""
+        return (
+            "Tripo model draft is ready for review.\n"
+            f"{task_line}"
+            f"- model_url: {model_url}\n\n"
+            "Please review this model link. If approved, send: СОГЛАСОВАНО"
+        )
+
+    def extract_task_id(self, payload: Any) -> str | None:
+        candidates: list[str] = []
+        if isinstance(payload, dict):
+            for key in ("task_id", "id"):
+                value = payload.get(key)
+                if isinstance(value, str) and value:
+                    candidates.append(value)
+            data = payload.get("data")
+            if isinstance(data, dict):
+                for key in ("task_id", "id"):
+                    value = data.get(key)
+                    if isinstance(value, str) and value:
+                        candidates.append(value)
+        return candidates[0] if candidates else None
+
+    def extract_status(self, payload: Any) -> str:
+        if isinstance(payload, dict):
+            for key in ("status", "task_status", "state"):
+                value = payload.get(key)
+                if isinstance(value, str):
+                    return value.upper()
+            data = payload.get("data")
+            if isinstance(data, dict):
+                for key in ("status", "task_status", "state"):
+                    value = data.get(key)
+                    if isinstance(value, str):
+                        return value.upper()
+        return "UNKNOWN"
+
+    def extract_model_url(self, payload: Any) -> str | None:
+        if isinstance(payload, str):
+            if payload.startswith("http://") or payload.startswith("https://"):
+                return payload
+            return None
+        if isinstance(payload, list):
+            for item in payload:
+                found = self.extract_model_url(item)
+                if found:
+                    return found
+            return None
+        if isinstance(payload, dict):
+            for key in ("model_url", "download_url", "glb", "obj", "fbx", "stl", "url"):
+                value = payload.get(key)
+                found = self.extract_model_url(value)
+                if found:
+                    return found
+            for value in payload.values():
+                found = self.extract_model_url(value)
+                if found:
+                    return found
+        return None
+
+    def describe_tripo_http_error(self, exc: urllib.error.HTTPError) -> str:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            body = ""
+        if exc.code == 403 and "enough credit" in body.lower():
+            return (
+                "Tripo API is configured, but there is not enough credit on the account.\n"
+                "Please top up Tripo credits, then retry the order."
+            )
+        return f"Tripo API error: HTTP {exc.code}. Response: {body[:300]}"
 
     def build_with_openai(self, order: dict[str, Any], revision_note: str | None) -> str:
         prompt_data = {
@@ -392,6 +584,9 @@ class Bot:
         if text.startswith("/approve"):
             self.handle_approve(chat_id, text)
             return
+        if text.startswith("/dispatch"):
+            self.handle_dispatch(user_id, chat_id, text)
+            return
         if text.startswith("/setstatus"):
             self.handle_set_status(user_id, chat_id, text)
             return
@@ -435,8 +630,9 @@ class Bot:
             "Команды:\n"
             "/start [source] - начать расчет\n"
             "/status <ORDER_ID> - проверить статус заказа\n"
+            "/approve <ORDER_ID> - согласовать модель\n"
             "/help - показать помощь\n"
-            "Для администратора: /setstatus <ORDER_ID> <STATUS> [комментарий]",
+            "Для администратора: /setstatus <ORDER_ID> <STATUS> [комментарий], /dispatch <ORDER_ID>",
         )
 
     def handle_status_query(self, chat_id: int, text: str) -> None:
@@ -508,6 +704,25 @@ class Bot:
             customer_msg += f" Комментарий: {note}"
         self.tg.send_message(customer_chat_id, customer_msg)
         self.tg.send_message(chat_id, f"Заказ {order_id} обновлен: {new_status}.")
+
+    def handle_dispatch(self, user_id: str, chat_id: int, text: str) -> None:
+        if self.cfg.admin_chat_id and str(chat_id) != self.cfg.admin_chat_id:
+            self.tg.send_message(chat_id, "Команда администратора недоступна в этом чате.")
+            return
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            self.tg.send_message(chat_id, "Формат: /dispatch <ORDER_ID>")
+            return
+        order_id = parts[1].strip().upper()
+        order = self.orders.get(order_id)
+        if not order:
+            self.tg.send_message(chat_id, f"Заказ {order_id} не найден.")
+            return
+        ok, message = self.dispatch_to_printer(order)
+        self.tg.send_message(chat_id, message)
+        if ok:
+            customer_chat_id = order["customer"]["chat_id"]
+            self.tg.send_message(customer_chat_id, f"Заказ {order_id} отправлен на печать.")
 
     def handle_deposit_proof(self, user_id: str, chat_id: int) -> None:
         session = self.sessions[user_id]
@@ -614,6 +829,7 @@ class Bot:
             answers["delivery_mode"] = mode
             order = self.create_order(user_id, chat_id, session)
             proposal = self.generate_model_proposal(order["order_id"])
+            proposal_mode = proposal.get("mode", "unknown")
             session["step"] = "await_model_approval"
             session["order_id"] = order["order_id"]
             self.tg.send_message(
@@ -621,7 +837,8 @@ class Bot:
                 f"Расчет готов по заказу {order['order_id']}:\n"
                 f"Итого: {order['quote_total_rub']} RUB\n"
                 f"Предоплата (50%): {order['deposit_required_rub']} RUB\n"
-                f"Статус: {STATUS_LABELS_RU.get(order['status'], order['status'])}\n\n"
+                f"Статус: {STATUS_LABELS_RU.get(order['status'], order['status'])}\n"
+                f"Источник конструктора: {proposal_mode}\n\n"
                 "Черновик модели для согласования:\n\n"
                 f"{proposal['text']}\n\n"
                 "Если согласны, отправьте: СОГЛАСОВАНО или /approve "
@@ -633,7 +850,7 @@ class Bot:
                     self.cfg.admin_chat_id,
                     f"Новый заказ {order['order_id']} от пользователя {user_id}. "
                     f"Сумма {order['quote_total_rub']} RUB, предоплата {order['deposit_required_rub']} RUB. "
-                    "Модель отправлена клиенту на согласование.",
+                    f"Источник конструктора: {proposal_mode}. Модель отправлена клиенту на согласование.",
                 )
             return
 
@@ -655,6 +872,7 @@ class Bot:
             self.tg.send_message(
                 chat_id,
                 "Обновил черновик модели с учетом комментария:\n\n"
+                f"(Источник конструктора: {proposal.get('mode', 'unknown')})\n\n"
                 f"{proposal['text']}\n\n"
                 f"Если согласны, отправьте СОГЛАСОВАНО или /approve {order_id}.",
             )
@@ -736,6 +954,78 @@ class Bot:
             f"Инструкция по оплате:\n{self.cfg.payment_instructions}\n\n"
             "После оплаты отправьте скриншот в этот чат.",
         )
+        if self.cfg.auto_dispatch_on_approval and self.cfg.admin_chat_id:
+            ok, message = self.dispatch_to_printer(order)
+            self.tg.send_message(self.cfg.admin_chat_id, f"Автодиспетчер: {message}")
+            if ok:
+                self.tg.send_message(chat_id, f"Заказ {order['order_id']} отправлен на печать автоматически.")
+
+    def dispatch_to_printer(self, order: dict[str, Any]) -> tuple[bool, str]:
+        if not self.cfg.printer_dispatch_webhook_url:
+            return False, "PRINTER_DISPATCH_WEBHOOK_URL не настроен."
+        model_url = self.extract_model_url_for_dispatch(order)
+        if not model_url:
+            return False, "Не найден model_url для отправки на принтер."
+        payload = {
+            "order_id": order["order_id"],
+            "customer_user_id": order["customer"]["user_id"],
+            "model_url": model_url,
+            "material": order["material"],
+            "color": order["color"],
+            "quantity": order["quantity"],
+            "postproc": order["postproc"],
+            "deadline": order["deadline"],
+            "delivery_mode": order["delivery_mode"],
+        }
+        headers = {"Content-Type": "application/json"}
+        if self.cfg.printer_dispatch_token:
+            headers["Authorization"] = f"Bearer {self.cfg.printer_dispatch_token}"
+        req = urllib.request.Request(
+            url=self.cfg.printer_dispatch_webhook_url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            method="POST",
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=35) as resp:
+                body = resp.read().decode("utf-8", "replace")
+                order["print_dispatch"] = {
+                    "status": "SUBMITTED",
+                    "at": now_iso(),
+                    "response_status": resp.status,
+                    "response_body": body[:500],
+                }
+            order["status"] = "PRINTING"
+            order["updated_at"] = now_iso()
+            return True, f"Заказ {order['order_id']} отправлен в диспетчер печати."
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace") if hasattr(e, "read") else ""
+            order["print_dispatch"] = {"status": "FAILED", "at": now_iso(), "error": f"HTTP {e.code}: {detail[:300]}"}
+            order["updated_at"] = now_iso()
+            return False, f"Ошибка отправки на принтер: HTTP {e.code}."
+        except Exception as e:  # noqa: BLE001
+            order["print_dispatch"] = {"status": "FAILED", "at": now_iso(), "error": str(e)}
+            order["updated_at"] = now_iso()
+            return False, f"Ошибка отправки на принтер: {e}"
+
+    def extract_model_url_for_dispatch(self, order: dict[str, Any]) -> str | None:
+        proposal = order.get("model_proposal", {})
+        if isinstance(proposal, dict):
+            direct_url = proposal.get("model_url")
+            if isinstance(direct_url, str) and direct_url.startswith(("http://", "https://")):
+                return direct_url
+            text = proposal.get("text", "")
+        else:
+            text = ""
+        if not isinstance(text, str):
+            return None
+        m = re.search(r"model_url:\s*(https?://\S+)", text)
+        if m:
+            return m.group(1)
+        m = re.search(r"(https?://\S+)", text)
+        if m:
+            return m.group(1)
+        return None
 
     def new_order_id(self) -> str:
         if not self.orders:
@@ -763,6 +1053,7 @@ class Bot:
 
 
 def main() -> None:
+    load_local_env(Path(".env"))
     cfg = load_config()
     bot = Bot(cfg)
     bot.run_forever()

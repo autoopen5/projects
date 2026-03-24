@@ -3,15 +3,15 @@
     "step": "await_deposit_proof",
     "source": "direct",
     "answers": {
-      "product_type": "статуэтка",
-      "example": "",
+      "product_type": "Держалка для очков в виде черепа",
+      "example": "https://img-edg.joomcdn.net/12071d2e41e067ad38aafe4cf177f5454c279eaf_original.jpeg",
       "dimensions_mm": [
-        120,
-        45,
-        20
+        100,
+        80,
+        120
       ],
       "material": "PETG",
-      "color": "синий",
+      "color": "чёрный",
       "deadline": "standard",
       "quantity": 1,
       "postproc": "none",
@@ -19,6 +19,6 @@
       "delivery_mode": "cdek"
     },
     "chat_id": 498798670,
-    "order_id": "ORD-0002"
+    "order_id": "ORD-0005"
   }
 }

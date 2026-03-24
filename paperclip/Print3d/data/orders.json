@@ -62,5 +62,131 @@
     "status": "WAITING_DEPOSIT",
     "created_at": "2026-03-22T20:47:55.634957+00:00",
     "updated_at": "2026-03-22T20:47:55.634957+00:00"
+  },
+  "ORD-0003": {
+    "order_id": "ORD-0003",
+    "source": "direct",
+    "customer": {
+      "user_id": "498798670",
+      "chat_id": 498798670,
+      "contact": "+79263774735"
+    },
+    "product_type": "Держалка для очков в виде черепа",
+    "example": "https://img-edg.joomcdn.net/12071d2e41e067ad38aafe4cf177f5454c279eaf_original.jpeg",
+    "dimensions_mm": [
+      100,
+      80,
+      120
+    ],
+    "material": "PETG",
+    "color": "черный",
+    "quantity": 1,
+    "deadline": "standard",
+    "postproc": "none",
+    "delivery_mode": "cdek",
+    "estimate": {
+      "material_g": 238.08,
+      "print_hours": 16.0
+    },
+    "quote_total_rub": 6404.64,
+    "deposit_required_rub": 3202.32,
+    "deposit_status": "PENDING",
+    "status": "WAITING_DEPOSIT",
+    "model_proposal": {
+      "mode": "heuristic",
+      "text": "1) Концепт модели\n- Изделие: Держалка для очков в виде черепа на базе описания клиента.\n- Габариты ориентировочно: 100x80x120 мм, партия 1 шт.\n- Материал/цвет: PETG, черный.\n\n2) Ключевые параметры печати\n- Рекомендуем повышенную толщину стенок 2.0-2.4 мм и заполнение 30-40%.\n- Приоритет: баланс качества поверхности и времени печати.\n- Постобработка: none.\n\n3) Риски и ограничения\n- Нужна проверка посадочных размеров и допусков перед финальной печатью.\n- Возможна корректировка геометрии для снижения поддержек и расхода материала.\n\n4) Что подтвердить у клиента\n- Точные критичные размеры и допуски.\n- Где нужна усиленная зона/ребра жесткости.\n- Приоритет: внешний вид или механическая прочность.",
+      "generated_at": "2026-03-23T14:45:14.887280+00:00"
+    },
+    "model_approval": {
+      "status": "APPROVED",
+      "updated_at": "2026-03-23T14:45:52.025827+00:00",
+      "note": ""
+    },
+    "created_at": "2026-03-23T14:45:13.186952+00:00",
+    "updated_at": "2026-03-23T14:45:52.025827+00:00"
+  },
+  "ORD-0004": {
+    "order_id": "ORD-0004",
+    "source": "direct",
+    "customer": {
+      "user_id": "498798670",
+      "chat_id": 498798670,
+      "contact": "+79263774735"
+    },
+    "product_type": "Держалка для очков в виде черепа",
+    "example": "https://img-edg.joomcdn.net/12071d2e41e067ad38aafe4cf177f5454c279eaf_original.jpeg",
+    "dimensions_mm": [
+      100,
+      80,
+      120
+    ],
+    "material": "PETG",
+    "color": "черный",
+    "quantity": 1,
+    "deadline": "standard",
+    "postproc": "none",
+    "delivery_mode": "cdek",
+    "estimate": {
+      "material_g": 238.08,
+      "print_hours": 16.0
+    },
+    "quote_total_rub": 6404.64,
+    "deposit_required_rub": 3202.32,
+    "deposit_status": "PENDING",
+    "status": "REVIEWING_DETAILS",
+    "model_proposal": {
+      "mode": "heuristic",
+      "text": "1) Концепт модели\n- Изделие: Держалка для очков в виде черепа на базе описания клиента.\n- Габариты ориентировочно: 100x80x120 мм, партия 1 шт.\n- Материал/цвет: PETG, черный.\n\n2) Ключевые параметры печати\n- Рекомендуем повышенную толщину стенок 2.0-2.4 мм и заполнение 30-40%.\n- Приоритет: баланс качества поверхности и времени печати.\n- Постобработка: none.\n\n3) Риски и ограничения\n- Нужна проверка посадочных размеров и допусков перед финальной печатью.\n- Возможна корректировка геометрии для снижения поддержек и расхода материала.\n\n4) Что подтвердить у клиента\n- Точные критичные размеры и допуски.\n- Где нужна усиленная зона/ребра жесткости.\n- Приоритет: внешний вид или механическая прочность.",
+      "generated_at": "2026-03-23T14:52:53.611322+00:00"
+    },
+    "model_approval": {
+      "status": "PENDING",
+      "updated_at": "2026-03-23T14:52:51.092651+00:00",
+      "note": ""
+    },
+    "created_at": "2026-03-23T14:52:51.092651+00:00",
+    "updated_at": "2026-03-23T14:52:53.611322+00:00"
+  },
+  "ORD-0005": {
+    "order_id": "ORD-0005",
+    "source": "direct",
+    "customer": {
+      "user_id": "498798670",
+      "chat_id": 498798670,
+      "contact": "+79263774735"
+    },
+    "product_type": "Держалка для очков в виде черепа",
+    "example": "https://img-edg.joomcdn.net/12071d2e41e067ad38aafe4cf177f5454c279eaf_original.jpeg",
+    "dimensions_mm": [
+      100,
+      80,
+      120
+    ],
+    "material": "PETG",
+    "color": "чёрный",
+    "quantity": 1,
+    "deadline": "standard",
+    "postproc": "none",
+    "delivery_mode": "cdek",
+    "estimate": {
+      "material_g": 238.08,
+      "print_hours": 16.0
+    },
+    "quote_total_rub": 6404.64,
+    "deposit_required_rub": 3202.32,
+    "deposit_status": "PENDING",
+    "status": "WAITING_DEPOSIT",
+    "model_proposal": {
+      "mode": "tripo",
+      "text": "Tripo model draft is ready for review.\n- task_id: e69c3a4b-3a00-4fb4-8648-5a19c9160e5e\n- model_url: https://tripo-data.rg1.data.tripo3d.com/tcli_b4b0b12f8e3d42849053d94d8f4ec627/20260323/e69c3a4b-3a00-4fb4-8648-5a19c9160e5e/text2image.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYjRiMGIxMmY4ZTNkNDI4NDkwNTNkOTRkOGY0ZWM2MjcvMjAyNjAzMjMvZTY5YzNhNGItM2EwMC00ZmI0LTg2NDgtNWExOWM5MTYwZTVlL3RleHQyaW1hZ2UuanBlZyIsIkNvbmRpdGlvbiI6eyJEYXRlTGVzc1RoYW4iOnsiQVdTOkVwb2NoVGltZSI6MTc3NDMxMDQwMH19fV19&Signature=r1tvulBM9q~He2JC2a52~i0oR3taB9SGbTO-lyRPdJw7JaBrJZpI456ouuNIa2FggODJsQ4sORPyfbQtMaJPWK9-MHIIRIcnxYqcqlBdZy4ASnlVUj9BsRif8kjK7HpP0jW0Lnw~dVAcKYvH8KMpn8JdRS5phjH5diEx-7Kb22kdx8L4M-Izi2qywUP8md-IH-IIp7Jowy0fbG8bnitx9K9ZHp74qzEifVJMyiJRRLh1aOtoB0DCzZhICEv7Vq7tCOmopBcyBdctCkIfkekPuz50Q2C388xvYBACTEzINSpUZNIlIXOe45kal71f1OY4A7boijT4dFPjHNwczV6cXw__\n\nPlease review this model link. If approved, send: СОГЛАСОВАНО",
+      "generated_at": "2026-03-23T15:21:15.572050+00:00"
+    },
+    "model_approval": {
+      "status": "APPROVED",
+      "updated_at": "2026-03-23T15:21:48.640135+00:00",
+      "note": ""
+    },
+    "created_at": "2026-03-23T15:21:04.530298+00:00",
+    "updated_at": "2026-03-23T15:21:48.640135+00:00"
   }
 }

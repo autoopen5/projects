@@ -3,10 +3,11 @@
 This repository now contains a runnable Telegram bot MVP:
 - lead intake (10-step questionnaire)
 - instant quote calculation
-- AI model draft generation for client approval (OpenAI optional, local fallback enabled)
+- AI model draft generation for client approval (Tripo optional, OpenAI optional, local fallback enabled)
 - deposit request and screenshot capture
 - status tracking (`/status`)
 - model approval command (`/approve <ORDER_ID>`)
+- printer dispatch command (`/dispatch <ORDER_ID>`) for admin flow
 - admin status updates (`/setstatus`)
 - local JSON persistence in `data/`
 
@@ -26,8 +27,16 @@ This repository now contains a runnable Telegram bot MVP:
    - `TELEGRAM_BOT_TOKEN` (required)
    - `ADMIN_CHAT_ID` (optional but recommended, your personal/admin chat id)
    - `PAYMENT_INSTRUCTIONS` (optional custom text)
-   - `OPENAI_API_KEY` (optional; if omitted, bot uses local heuristic constructor)
+   - `TRIPO_API_KEY` (optional; preferred constructor path if provided)
+   - `TRIPO_API_URL` (optional; default `https://api.tripo3d.ai/v2/openapi/task`)
+   - `TRIPO_MODEL_VERSION` (optional; default `auto`)
+   - `TRIPO_POLL_ATTEMPTS` (optional; default `8`)
+   - `PRINTER_DISPATCH_WEBHOOK_URL` (optional; printer dispatcher endpoint)
+   - `PRINTER_DISPATCH_TOKEN` (optional; bearer auth for dispatcher)
+   - `AUTO_DISPATCH_ON_APPROVAL` (optional; `true/false`, default `false`)
+   - `OPENAI_API_KEY` (optional fallback; if omitted and no Tripo key, bot uses local heuristic constructor)
    - `OPENAI_MODEL` (optional; default `gpt-5-mini`)
+   The bot auto-loads variables from local `.env` (if present).
 3. Run:
 
 ```powershell
@@ -41,6 +50,7 @@ python .\telegram_bot_mvp.py
 - Customer starts: `/start` or `/start avito`
 - Customer checks status: `/status ORD-0001`
 - Customer approves model: `/approve ORD-0001` (or sends `СОГЛАСОВАНО` in active session)
+- Admin dispatches approved order to printer webhook: `/dispatch ORD-0001`
 - Admin updates status: `/setstatus ORD-0001 PRINTING Started at 15:00`
 
 Allowed statuses:
