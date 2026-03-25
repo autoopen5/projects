@@ -17,7 +17,7 @@ subscribers = set()
 sent_signals = set()
 
 # https://disk.yandex.ru/d/ejWF4wGI3-0cww  gfgby xlsx
-PUBLIC_KEY = "https://disk.yandex.ru/i/4ow9EC89R_7ADw" # твоя ссылка
+PUBLIC_KEY = "https://disk.yandex.ru/i/Z-UaIpXCTJ2YSQ" # твоя ссылка
 # https://disk.yandex.ru/i/2vPKVDCLTThDww https://disk.yandex.ru/i/bpEO6PndD__7ZQ
 
 _cache = {
