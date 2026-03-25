@@ -27,7 +27,27 @@ _cache = {
 
 CACHE_TTL = 300  # 5 минут
 
+from openpyxl import load_workbook
 
+def read_excel_safe(content):
+
+    try:
+        wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
+        ws = wb.active
+
+        data = list(ws.values)
+
+        if not data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(data[1:], columns=data[0])
+
+        return df
+
+    except Exception as e:
+        print("Fallback read failed:", e)
+        return pd.DataFrame()
+    
 def load_bonds_from_yadisk():
 
     if _cache["df"] is not None and time.time() - _cache["timestamp"] < CACHE_TTL:
@@ -58,19 +78,15 @@ def load_bonds_from_yadisk():
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
         # 🔥 читаем аккуратно
-        df = pd.read_excel(
-            BytesIO(file.content),
-            engine="openpyxl",
-            usecols=[
-                "ISIN",
-                "Характеристики Вклада",
-                "Продать не ниже, в %",
-                "Рейтинг",
-                "Средняя цена",
-                "Дата оферты"
-            ]
-        )
-
+        df = read_excel_safe(file.content)
+        df = df[[
+            "ISIN",
+            "Характеристики Вклада",
+            "Продать не ниже, в %",
+            "Рейтинг",
+            "Средняя цена",
+            "Дата оферты"
+        ]]
         # фильтр
         df = df[
             df["ISIN"].notna() &
