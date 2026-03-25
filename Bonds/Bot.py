@@ -58,7 +58,18 @@ def load_bonds_from_yadisk():
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
         # 🔥 читаем аккуратно
-        df = pd.read_excel(BytesIO(file.content), engine="openpyxl")
+        df = pd.read_excel(
+            BytesIO(file.content),
+            engine="openpyxl",
+            usecols=[
+                "ISIN",
+                "Характеристики Вклада",
+                "Продать не ниже, в %",
+                "Рейтинг",
+                "Средняя цена",
+                "Дата оферты"
+            ]
+        )
 
         # фильтр
         df = df[
