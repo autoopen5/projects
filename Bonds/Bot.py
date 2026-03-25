@@ -87,6 +87,11 @@ def load_bonds_from_yadisk():
             "Средняя цена",
             "Дата оферты"
         ]]
+
+        df.columns = [
+            str(c).strip().replace("\n", " ").replace("\r", "")
+            for c in df.columns
+        ]
         # фильтр
         df = df[
             df["ISIN"].notna() &
@@ -96,7 +101,7 @@ def load_bonds_from_yadisk():
 
         _cache["df"] = df
         _cache["timestamp"] = time.time()
-
+        print("COLUMNS:", df.columns.tolist())
         return df
 
     except Exception as e:
