@@ -294,7 +294,7 @@ async def price(update, context):
         text += f"price: {bond['price']}\n"
         text += f"target: {bond['target']}\n\n"
         text += f"YTM: {bond['ytm']}\n\n"
-        
+
     await update.message.reply_text(text)
 
 
@@ -318,7 +318,10 @@ async def monitor(context):
         isin = bond["ISIN"]
         target = bond.get("SellPrice")
         name = bond.get("Название")
-        price = moex.get(isin)
+        data = moex.get(isin)
+
+        price = data["price"] if data else None
+        ytm = data["ytm"] if data else None
 
         print(isin, "price:", price, "target:", target)
 
@@ -343,6 +346,7 @@ SELL SIGNAL
 name: {name}
 price: {price}
 target: {target}
+YTM: {ytm}
 """
 
             print("SIGNAL:", isin)
@@ -373,7 +377,11 @@ async def send_report(context):
     for bond in bonds:
 
         isin = bond["ISIN"]
-        price = moex.get(isin)
+        data = moex.get(isin)
+
+        price = data["price"] if data else None
+        ytm = data["ytm"] if data else None
+
         avg_price = bond.get("Средняя цена")
 
         income = None
@@ -388,6 +396,7 @@ async def send_report(context):
             "Название": bond.get("Название"),
             "ISIN": isin,
             "Цена": price,
+            "YTM": ytm,
             "Продать не ниже, в %": bond.get("SellPrice"),
             "Депозиты Банка": bond.get("Депозиты Банка"),
             "Фио": bond.get("Фио"),
