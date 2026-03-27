@@ -264,6 +264,70 @@ def get_prices():
     print("Sample missing:", missing[:10])
     return result
 
+def rating_ok(rating):
+    allowed = ["AAA", "AA+", "AA", "AA-", "A+", "A", "A-"]
+    return rating in allowed
+
+def find_alternatives(current_bond, bonds, moex):
+
+    results = []
+
+    current_data = moex.get(current_bond["ISIN"])
+    if not current_data:
+        return []
+
+    current_ytm = current_data.get("ytm")
+
+    if not current_ytm:
+        return []
+
+    try:
+        current_ytm = float(current_ytm)
+    except:
+        return []
+
+    for bond in bonds:
+
+        isin = bond["ISIN"]
+
+        # не сравниваем саму с собой
+        if isin == current_bond["ISIN"]:
+            continue
+
+        # фильтр рейтинга
+        if not rating_ok(bond.get("Рейтинг")):
+            continue
+
+        data = moex.get(isin)
+        if not data:
+            continue
+
+        ytm = data.get("ytm")
+        price = data.get("price")
+
+        if ytm is None or price is None:
+            continue
+
+        try:
+            ytm = float(ytm)
+        except:
+            continue
+
+        # 🔥 ключевая логика
+        if ytm > current_ytm + 1:   # +1% лучше
+            results.append({
+                "ISIN": isin,
+                "ytm": ytm,
+                "price": price,
+                "rating": bond.get("Рейтинг"),
+                "name": bond.get("Название")
+            })
+
+    # сортировка по доходности
+    results.sort(key=lambda x: x["ytm"], reverse=True)
+
+    return results[:3]
+
 
 # -----------------------
 # команды
@@ -338,17 +402,29 @@ async def monitor(context):
             continue
 
         if price >= target and isin not in sent_signals:
-
+            alts = find_alternatives(bond, bonds, moex)
             text = f"""
-SELL SIGNAL
+            SELL SIGNAL
 
-{isin}
-name: {name}
-price: {price}
-target: {target}
-YTM: {ytm}
-"""
+            {isin}
+            name: {name}
+            price: {price}
+            target: {target}
+            YTM: {ytm}
+            """
+            if alts:
+                text += "\n🔎 Better alternatives:\n"
 
+                for alt in alts:
+                    text += (
+                        f"\n{alt['ISIN']}"
+                        f"\nYTM: {alt['ytm']}%"
+                        f"\nprice: {alt['price']}"
+                        f"\nrating: {alt['rating']}\n"
+                    )
+            else:
+                text += "\n❗ No better alternatives found\n"
+                
             print("SIGNAL:", isin)
 
             for chat_id in subscribers:
