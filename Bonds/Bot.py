@@ -125,7 +125,8 @@ def load_bonds_from_yadisk():
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
         df = read_excel_safe(file.content)
-
+        print("Columns parsed:", df.columns.tolist())
+        print("Rows parsed:", len(df))    
         # 🔥 оставляем только нужные колонки (игнорим NRL и прочее)
         needed_cols = [
             "ISIN",
@@ -151,7 +152,8 @@ def load_bonds_from_yadisk():
             (df["ISIN"] != "") &
             (df["ISIN"] != "-")
         ]
-
+        print("After ISIN filter:", len(df))
+        
         _cache["df"] = df
         _cache["timestamp"] = time.time()
 
@@ -234,7 +236,8 @@ def get_prices():
 
     bonds = load_bonds()
     moex = load_moex_prices()
-
+    print("TOTAL bonds:", len(bonds))
+    print("MOEX prices:", len(moex))
     result = []
 
     for bond in bonds:
@@ -247,7 +250,9 @@ def get_prices():
             "price": price,
             "target": bond.get("SellPrice")
         })
-
+    missing = [b["ISIN"] for b in bonds if b["ISIN"] not in moex]
+    print("Missing prices:", len(missing))
+    print("Sample missing:", missing[:10])
     return result
 
 
@@ -407,6 +412,12 @@ def main():
 
     app = ApplicationBuilder().token(TOKEN).build()
 
+    app.job_queue.scheduler.configure(
+    job_defaults={
+        "coalesce": True,
+        "max_instances": 1
+    }
+)    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("price", price))
     app.add_handler(CommandHandler("report", report))
