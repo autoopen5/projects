@@ -100,6 +100,7 @@ def read_excel_safe(content):
     except Exception as e:
         print("❌ XML Excel parser failed:", e)
         return pd.DataFrame()
+
   
 def load_bonds_from_yadisk():
 
@@ -153,7 +154,7 @@ def load_bonds_from_yadisk():
             (df["ISIN"] != "-")
         ]
         print("After ISIN filter:", len(df))
-        
+
         _cache["df"] = df
         _cache["timestamp"] = time.time()
 
@@ -207,13 +208,12 @@ def load_moex_prices():
 
     params = {
         "iss.meta": "off",
-        "marketdata.columns": "SECID,LAST"
+        "marketdata.columns": "SECID,LAST,YIELD"
     }
 
     print("Request MOEX prices")
 
     r = requests.get(url, params=params, timeout=10)
-
     data = r.json()
 
     prices = {}
@@ -222,8 +222,12 @@ def load_moex_prices():
 
         secid = row[0]
         price = row[1]
+        ytm = row[2]
 
-        prices[secid] = price
+        prices[secid] = {
+            "price": price,
+            "ytm": ytm
+        }
 
     return prices
 
@@ -243,13 +247,18 @@ def get_prices():
     for bond in bonds:
 
         isin = bond["ISIN"]
-        price = moex.get(isin)
+        data = moex.get(isin)
+
+        price = data["price"] if data else None
+        ytm = data["ytm"] if data else None
 
         result.append({
             "ISIN": isin,
             "price": price,
-            "target": bond.get("SellPrice")
-        })
+            "target": bond.get("SellPrice"),
+            "ytm": ytm
+        })  
+    
     missing = [b["ISIN"] for b in bonds if b["ISIN"] not in moex]
     print("Missing prices:", len(missing))
     print("Sample missing:", missing[:10])
@@ -284,7 +293,8 @@ async def price(update, context):
         text += f"{bond['ISIN']}\n"
         text += f"price: {bond['price']}\n"
         text += f"target: {bond['target']}\n\n"
-
+        text += f"YTM: {bond['ytm']}\n\n"
+        
     await update.message.reply_text(text)
 
 
