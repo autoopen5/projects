@@ -5,7 +5,7 @@ import time
 import datetime
 from io import BytesIO
 from telegram.ext import ApplicationBuilder, CommandHandler
-
+from openpyxl import load_workbook
 
 TOKEN = "8691798405:AAGzC1Ooe90EI6J6JkeRuZ5wQGyP_3UxZh4"
 
@@ -17,7 +17,7 @@ subscribers = set()
 sent_signals = set()
 
 # https://disk.yandex.ru/d/ejWF4wGI3-0cww  gfgby xlsx
-PUBLIC_KEY = "https://disk.yandex.ru/i/Z-UaIpXCTJ2YSQ" # твоя ссылка
+PUBLIC_KEY = "https://disk.yandex.ru/i/4ow9EC89R_7ADw" # твоя ссылка
 # https://disk.yandex.ru/i/2vPKVDCLTThDww https://disk.yandex.ru/i/bpEO6PndD__7ZQ
 
 _cache = {
@@ -27,6 +27,23 @@ _cache = {
 
 CACHE_TTL = 300  # 5 минут
 
+def read_excel_safe(content):
+
+    wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
+    ws = wb.active
+
+    data = list(ws.values)
+
+    if not data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(data[1:], columns=data[0])
+
+    # очистка колонок
+    df.columns = [
+        str(c).strip().replace("\n", " ").replace("\r", "")
+        for c in df.columns
+    ]
 
 def load_bonds_from_yadisk():
 
@@ -34,7 +51,6 @@ def load_bonds_from_yadisk():
         return _cache["df"]
 
     try:
-        # 🔥 используем ТВОЙ /i/
         url = "https://cloud-api.yandex.net/v1/disk/public/resources/download"
         params = {"public_key": PUBLIC_KEY}
 
@@ -46,19 +62,29 @@ def load_bonds_from_yadisk():
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
         download_url = data["href"]
-
-        print("Download URL:", download_url)
-
         file = requests.get(download_url, timeout=10)
 
-        # 🔥 проверяем что это XLSX
         if not file.content.startswith(b'PK'):
-            print("❌ Not XLSX!")
-            print(file.content[:200])
+            print("❌ Not XLSX")
             return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
 
-        # 🔥 читаем аккуратно
-        df = pd.read_excel(BytesIO(file.content), engine="openpyxl")
+        df = read_excel_safe(file.content)
+
+        # 🔥 оставляем только нужные колонки (игнорим NRL и прочее)
+        needed_cols = [
+            "ISIN",
+            "Характеристики Вклада",
+            "Продать не ниже, в %",
+            "Рейтинг",
+            "Депозиты Банка",	
+            "Фио",
+            "Кол-во обл",
+            "Средняя цена",
+            "Дата оферты",
+            "Спекуляции"
+        ]
+
+        df = df[[col for col in needed_cols if col in df.columns]]
 
         # фильтр
         df = df[
@@ -74,9 +100,6 @@ def load_bonds_from_yadisk():
 
     except Exception as e:
         print("Ошибка загрузки:", e)
-        return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
-    except Exception as e:
-        print("Ошибка загрузки CSV:", e)
         return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
     
 # -----------------------
@@ -297,7 +320,7 @@ async def send_report(context):
             "Рейтинг": bond.get("Рейтинг"),
             "Кол-во обл": bond.get("Кол-во обл"),
             "Средняя цена": avg_price,
-            "ТКД": bond.get("ТКД"),
+            # "ТКД": bond.get("ТКД"),
             "Дата оферты": bond.get("Дата оферты"),
             "Спекуляции": bond.get("Спекуляции"),
             "Доход": income
