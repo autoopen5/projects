@@ -29,22 +29,35 @@ CACHE_TTL = 300  # 5 минут
 
 def read_excel_safe(content):
 
-    wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
-    ws = wb.active
+    try:
+        wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
+        ws = wb.active
 
-    data = list(ws.values)
+        data = list(ws.values)
 
-    if not data:
-        return pd.DataFrame()
+        if not data:
+            return pd.DataFrame()
 
-    df = pd.DataFrame(data[1:], columns=data[0])
+        df = pd.DataFrame(data[1:], columns=data[0])
 
-    # очистка колонок
-    df.columns = [
-        str(c).strip().replace("\n", " ").replace("\r", "")
-        for c in df.columns
-    ]
+        df.columns = [
+            str(c).strip().replace("\n", " ").replace("\r", "")
+            for c in df.columns
+        ]
 
+        return df
+
+    except Exception as e:
+        print("⚠️ openpyxl failed:", e)
+
+        # 🔥 fallback через pandas
+        try:
+            df = pd.read_excel(BytesIO(content), engine="xlrd")
+            return df
+        except Exception as e2:
+            print("⚠️ pandas fallback failed:", e2)
+            return pd.DataFrame()
+  
 def load_bonds_from_yadisk():
 
     if _cache["df"] is not None and time.time() - _cache["timestamp"] < CACHE_TTL:
@@ -84,6 +97,9 @@ def load_bonds_from_yadisk():
             "Спекуляции"
         ]
 
+        if df is None or df.empty:
+            return _cache["df"] if _cache["df"] is not None else pd.DataFrame()
+        
         df = df[[col for col in needed_cols if col in df.columns]]
 
         # фильтр
