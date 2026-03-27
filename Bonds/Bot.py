@@ -517,11 +517,23 @@ async def send_report(context):
 
         income = None
 
-        if price is not None and avg_price is not None:
-            try:
+        try:
+            if price is not None and avg_price is not None:
+
+                # 🔥 чистим avg_price
+                if isinstance(avg_price, str):
+                    avg_price = avg_price.replace(",", ".").strip()
+
+                avg_price = float(avg_price)
+                price = float(price)
+
                 income = price - (avg_price / 10)
-            except:
-                income = None
+
+                income = round(income, 2)
+
+        except Exception as e:
+            print("Income calc error:", isin, avg_price, e)
+            income = None
 
         rows.append({
             "Название": bond.get("Название"),
