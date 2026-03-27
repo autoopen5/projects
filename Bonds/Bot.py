@@ -17,6 +17,7 @@ INTERVAL = 300
 
 subscribers = set()
 sent_signals = set()
+sent_buy_signals = set()
 
 # https://disk.yandex.ru/d/ejWF4wGI3-0cww  gfgby xlsx
 PUBLIC_KEY = "https://disk.yandex.ru/i/4ow9EC89R_7ADw" # твоя ссылка
@@ -133,6 +134,7 @@ def load_bonds_from_yadisk():
             "ISIN",
             "Характеристики Вклада",
             "Продать не ниже, в %",
+            "Купить не выше",
             "Рейтинг",
             "Депозиты Банка",	
             "Фио",
@@ -186,6 +188,7 @@ def load_bonds():
                 "ISIN": row["ISIN"],
                 "Название": row.get("Характеристики Вклада"),
                 "SellPrice": row.get("Продать не ниже, в %"),
+                "BuyPrice": row.get("Купить не выше"),
                 "Рейтинг": row.get("Рейтинг"),
                 "Депозиты Банка": row.get("Депозиты Банка"),	
                 "Фио": row.get("Фио"),
@@ -380,63 +383,115 @@ async def monitor(context):
     for bond in bonds:
 
         isin = bond["ISIN"]
-        target = bond.get("SellPrice")
         name = bond.get("Название")
+
+        sell_target = bond.get("SellPrice")
+        buy_target = bond.get("BuyPrice")
+
         data = moex.get(isin)
 
-        price = data["price"] if data else None
-        ytm = data["ytm"] if data else None
-
-        print(isin, "price:", price, "target:", target)
-
-        if target is None or pd.isna(target):
+        if not data:
             continue
 
+        price = data.get("price")
+        ytm = data.get("ytm")
+
+        print(isin, "price:", price, "ytm:", ytm,
+              "sell:", sell_target, "buy:", buy_target)
+
+        # проверка данных
         if price is None:
             continue
 
         try:
             price = float(price)
-            target = float(target)
         except:
             continue
 
-        if price >= target and isin not in sent_signals:
-            alts = find_alternatives(bond, bonds, moex)
-            text = f"""
-            SELL SIGNAL
+        try:
+            if sell_target is not None:
+                sell_target = float(sell_target)
+        except:
+            sell_target = None
 
-            {isin}
-            name: {name}
-            price: {price}
-            target: {target}
-            YTM: {ytm}
-            """
-            if alts:
-                text += "\n🔎 Better alternatives:\n"
+        try:
+            if buy_target is not None:
+                buy_target = float(buy_target)
+        except:
+            buy_target = None
 
-                for alt in alts:
-                    text += (
-                        f"\n{alt['ISIN']}"
-                        f"\nYTM: {alt['ytm']}%"
-                        f"\nprice: {alt['price']}"
-                        f"\nrating: {alt['rating']}\n"
-                    )
-            else:
-                text += "\n❗ No better alternatives found\n"
+        # ---------------- SELL SIGNAL ----------------
+
+        if sell_target is not None:
+
+            if price >= sell_target and isin not in sent_signals:
+
+                text = f"""
+SELL SIGNAL
+
+{isin}
+name: {name}
+price: {price}
+target: {sell_target}
+YTM: {ytm}
+"""
+
+                # 🔥 ищем альтернативы
+                alts = find_alternatives(bond, bonds, moex)
+
+                if alts:
+                    text += "\n🔎 Better alternatives:\n"
+
+                    for alt in alts:
+                        text += (
+                            f"\n{alt['ISIN']}"
+                            f"\nYTM: {alt['ytm']}%"
+                            f"\nprice: {alt['price']}"
+                            f"\nrating: {alt['rating']}\n"
+                        )
+                else:
+                    text += "\n❗ No better alternatives found\n"
+
+                print("SELL SIGNAL:", isin)
+
+                for chat_id in subscribers:
+                    await context.bot.send_message(chat_id=chat_id, text=text)
+
+                sent_signals.add(isin)
+
+            elif price < sell_target and isin in sent_signals:
+
+                print("Reset SELL signal for", isin)
+                sent_signals.remove(isin)
+
+        # ---------------- BUY SIGNAL ----------------
+
+        if buy_target is not None:
+
+            if price <= buy_target and isin not in sent_buy_signals:
+
+                text = f"""
+BUY SIGNAL
+
+{isin}
+name: {name}
+price: {price}
+buy target: {buy_target}
+YTM: {ytm}
+"""
+
+                print("BUY SIGNAL:", isin)
+
+                for chat_id in subscribers:
+                    await context.bot.send_message(chat_id=chat_id, text=text)
+
+                sent_buy_signals.add(isin)
+
+            elif price > buy_target and isin in sent_buy_signals:
+
+                print("Reset BUY signal for", isin)
+                sent_buy_signals.remove(isin)
                 
-            print("SIGNAL:", isin)
-
-            for chat_id in subscribers:
-                await context.bot.send_message(chat_id=chat_id, text=text)
-
-            sent_signals.add(isin)
-
-        elif price < target and isin in sent_signals:
-
-            print("Reset signal for", isin)
-            sent_signals.remove(isin)
-
 # -----------------------
 # функция отчёта
 # -----------------------
@@ -474,6 +529,7 @@ async def send_report(context):
             "Цена": price,
             "YTM": ytm,
             "Продать не ниже, в %": bond.get("SellPrice"),
+            "Купить не выше": bond.get("BuyPrice"),
             "Депозиты Банка": bond.get("Депозиты Банка"),
             "Фио": bond.get("Фио"),
             "Рейтинг": bond.get("Рейтинг"),
