@@ -6,6 +6,8 @@ import datetime
 from io import BytesIO
 from telegram.ext import ApplicationBuilder, CommandHandler
 from openpyxl import load_workbook
+import zipfile
+import xml.etree.ElementTree as ET
 
 TOKEN = "8691798405:AAGzC1Ooe90EI6J6JkeRuZ5wQGyP_3UxZh4"
 
@@ -30,33 +32,74 @@ CACHE_TTL = 300  # 5 минут
 def read_excel_safe(content):
 
     try:
-        wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
-        ws = wb.active
+        file_bytes = BytesIO(content)
 
-        data = list(ws.values)
+        with zipfile.ZipFile(file_bytes) as z:
 
-        if not data:
-            return pd.DataFrame()
+            ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
-        df = pd.DataFrame(data[1:], columns=data[0])
+            # 🔹 shared strings
+            shared_strings = []
+            if "xl/sharedStrings.xml" in z.namelist():
+                sst_xml = z.read("xl/sharedStrings.xml")
+                sst_root = ET.fromstring(sst_xml)
 
-        df.columns = [
-            str(c).strip().replace("\n", " ").replace("\r", "")
-            for c in df.columns
-        ]
+                for si in sst_root.findall(".//a:t", ns):
+                    shared_strings.append(si.text)
 
-        return df
+            # 🔹 находим первый лист автоматически
+            sheet_name = [f for f in z.namelist() if "worksheets/sheet" in f][0]
+            sheet_xml = z.read(sheet_name)
+
+            root = ET.fromstring(sheet_xml)
+
+            rows = []
+
+            for row in root.findall(".//a:sheetData/a:row", ns):
+
+                row_data = {}
+
+                for cell in row.findall("a:c", ns):
+
+                    cell_ref = cell.attrib.get("r")  # например A1
+                    col = ''.join(filter(str.isalpha, cell_ref))
+
+                    t = cell.attrib.get("t")
+                    v = cell.find("a:v", ns)
+
+                    value = None
+
+                    if v is not None:
+                        if t == "s":
+                            value = shared_strings[int(v.text)]
+                        else:
+                            value = v.text
+
+                    row_data[col] = value
+
+                rows.append(row_data)
+
+            if not rows:
+                return pd.DataFrame()
+
+            # 🔥 преобразуем в DataFrame
+            df = pd.DataFrame(rows)
+
+            # первая строка = заголовки
+            df.columns = df.iloc[0]
+            df = df[1:]
+
+            # чистим названия колонок
+            df.columns = [
+                str(c).strip().replace("\n", " ").replace("\r", "")
+                for c in df.columns
+            ]
+
+            return df.reset_index(drop=True)
 
     except Exception as e:
-        print("⚠️ openpyxl failed:", e)
-
-        # 🔥 fallback через pandas
-        try:
-            df = pd.read_excel(BytesIO(content), engine="xlrd")
-            return df
-        except Exception as e2:
-            print("⚠️ pandas fallback failed:", e2)
-            return pd.DataFrame()
+        print("❌ XML Excel parser failed:", e)
+        return pd.DataFrame()
   
 def load_bonds_from_yadisk():
 
@@ -145,7 +188,7 @@ def load_bonds():
                 "Фио": row.get("Фио"),
                 "Кол-во обл": row.get("Кол-во обл"),
                 "Средняя цена": row.get("Средняя цена"),
-                "ТКД": row.get("ТКД"),
+                # "ТКД": row.get("ТКД"),
                 "Дата оферты": row.get("Дата оферты"),
                 "Спекуляции": row.get("Спекуляции"),
             })
