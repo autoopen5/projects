@@ -16,8 +16,8 @@ INTERVAL = 300
 
 
 subscribers = set()
-sent_signals = set()
-sent_buy_signals = set()
+sent_signals = {}
+sent_buy_signals = {}
 
 # https://disk.yandex.ru/d/ejWF4wGI3-0cww  gfgby xlsx
 PUBLIC_KEY = "https://disk.yandex.ru/i/4ow9EC89R_7ADw" # твоя ссылка
@@ -374,14 +374,12 @@ async def report(update, context):
 # -----------------------
 
 async def monitor(context):
-
     print("Check prices")
 
     bonds = load_bonds()
     moex = load_moex_prices()
 
     for bond in bonds:
-
         isin = bond["ISIN"]
         name = bond.get("Название")
 
@@ -399,7 +397,7 @@ async def monitor(context):
         print(isin, "price:", price, "ytm:", ytm,
               "sell:", sell_target, "buy:", buy_target)
 
-        # проверка данных
+        # проверка цены
         if price is None:
             continue
 
@@ -408,26 +406,39 @@ async def monitor(context):
         except:
             continue
 
+        # SELL target
         try:
-            if sell_target is not None:
-                sell_target = float(sell_target)
+            if sell_target is not None and str(sell_target).strip() != "":
+                sell_target = float(str(sell_target).replace(",", ".").strip())
+            else:
+                sell_target = None
         except:
             sell_target = None
 
+        # BUY target
         try:
-            if buy_target is not None:
-                buy_target = float(buy_target)
+            if buy_target is not None and str(buy_target).strip() != "":
+                buy_target = float(str(buy_target).replace(",", ".").strip())
+            else:
+                buy_target = None
         except:
             buy_target = None
 
+        today = datetime.date.today().isoformat()
+
         # ---------------- SELL SIGNAL ----------------
-
         if sell_target is not None:
+            last_signal = sent_signals.get(isin)
 
-            if price >= sell_target and isin not in sent_signals:
+            already_sent_today_same_target = (
+                last_signal is not None
+                and last_signal.get("date") == today
+                and last_signal.get("target") == sell_target
+            )
 
-                text = f"""
-SELL SIGNAL
+            if price >= sell_target and not already_sent_today_same_target:
+
+                text = f"""SELL SIGNAL
 
 {isin}
 name: {name}
@@ -436,7 +447,7 @@ target: {sell_target}
 YTM: {ytm}
 """
 
-                # 🔥 ищем альтернативы
+                # ищем альтернативы
                 alts = find_alternatives(bond, bonds, moex)
 
                 if alts:
@@ -457,21 +468,24 @@ YTM: {ytm}
                 for chat_id in subscribers:
                     await context.bot.send_message(chat_id=chat_id, text=text)
 
-                sent_signals.add(isin)
-
-            elif price < sell_target and isin in sent_signals:
-
-                print("Reset SELL signal for", isin)
-                sent_signals.remove(isin)
+                sent_signals[isin] = {
+                    "date": today,
+                    "target": sell_target
+                }
 
         # ---------------- BUY SIGNAL ----------------
-
         if buy_target is not None:
+            last_signal = sent_buy_signals.get(isin)
 
-            if price <= buy_target and isin not in sent_buy_signals:
+            already_sent_today_same_target = (
+                last_signal is not None
+                and last_signal.get("date") == today
+                and last_signal.get("target") == buy_target
+            )
 
-                text = f"""
-BUY SIGNAL
+            if price <= buy_target and not already_sent_today_same_target:
+
+                text = f"""BUY SIGNAL
 
 {isin}
 name: {name}
@@ -485,12 +499,10 @@ YTM: {ytm}
                 for chat_id in subscribers:
                     await context.bot.send_message(chat_id=chat_id, text=text)
 
-                sent_buy_signals.add(isin)
-
-            elif price > buy_target and isin in sent_buy_signals:
-
-                print("Reset BUY signal for", isin)
-                sent_buy_signals.remove(isin)
+                sent_buy_signals[isin] = {
+                    "date": today,
+                    "target": buy_target
+                }
                 
 # -----------------------
 # функция отчёта
