@@ -1,0 +1,13 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# outputs
+*.xlsx
+
+# venv (на всякий случай)
+venv/
+.venv/
