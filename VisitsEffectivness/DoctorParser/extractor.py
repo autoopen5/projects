@@ -56,7 +56,13 @@ def _fetch(url: str, retries: int = MAX_RETRIES) -> str | None:
                 if not any(t in ct for t in ("text", "html", "xml")):
                     return None
                 resp.encoding = resp.apparent_encoding or "utf-8"
-                return resp.text
+                text = resp.text
+                # Отбрасываем бинарный/сжатый контент (brotli без декодирования и т.п.)
+                sample = text[:300]
+                non_print = sum(1 for c in sample if ord(c) < 32 and c not in "\n\r\t")
+                if non_print > 20:
+                    return None
+                return text
             log.debug(f"HTTP {resp.status_code} для {url}")
         except Exception as e:
             log.debug(f"Попытка {attempt+1}/{retries}: {e}")
@@ -108,7 +114,7 @@ def _clean_html(html: str, max_chars: int = 12_000) -> str:
             tag.decompose()
         text = soup.get_text(separator="\n", strip=True)
     except Exception:
-        text = re.sub(r"<[^>]+>", " ", html)
+        return ""
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text[:max_chars]
 
