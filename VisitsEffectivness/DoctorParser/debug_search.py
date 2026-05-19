@@ -100,13 +100,32 @@ def test_bus_gov(query: str):
         print(f"ОШИБКА bus.gov.ru: {e}")
 
 
+def test_google(query: str):
+    print(f"\n-- Google для: {query[:60]}")
+    try:
+        from googlesearch import search
+        time.sleep(2)
+        results = list(search(query, num_results=5, lang="ru", sleep_interval=2))
+        print(f"Google: найдено {len(results)} результатов")
+        for url in results:
+            print(f"  → {url}")
+    except ImportError:
+        print("googlesearch-python не установлен")
+    except Exception as e:
+        print(f"ОШИБКА Google: {e}")
+
+
 if __name__ == "__main__":
     import urllib3
     urllib3.disable_warnings()
 
     for q in TEST_QUERIES[:2]:
+        # Google — основной
+        test_google(q)
+        # DDG — запасной
         test_duckduckgo(q)
-        test_bus_gov(q.split()[0] + " " + q.split()[1])  # короткий запрос для bus.gov
-        time.sleep(2)
+        # bus.gov.ru
+        test_bus_gov(q.split()[0] + " " + q.split()[1])
+        time.sleep(3)
 
     print("\n\nДиагностика завершена.")

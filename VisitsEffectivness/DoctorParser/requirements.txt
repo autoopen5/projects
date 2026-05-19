@@ -1,15 +1,16 @@
 # HTTP-запросы
 requests==2.31.0
 
-# Парсинг HTML (lxml не нужен — используем встроенный html.parser)
+# Парсинг HTML
 beautifulsoup4==4.12.3
+# lxml нужен для DuckDuckGo backend=lite.
+# Windows: pip install lxml --only-binary :all:
+# Linux/Mac: pip install lxml
 
-# Поиск сайтов МО (основной способ)
+# Поиск сайтов МО
+googlesearch-python==1.2.3
 duckduckgo-search==6.2.6
 
-# Google как запасной вариант
-googlesearch-python==1.2.3
-
-# Работа с данными (mo_collector, mo_open_sources)
+# Работа с данными
 pandas==2.2.2
 openpyxl==3.1.2

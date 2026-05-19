@@ -2,8 +2,8 @@
 searcher.py — поиск сайта МО.
 
 Стратегия (4 уровня):
-1. DuckDuckGo (duckduckgo-search) — основной, без капчи и блокировок
-2. googlesearch-python — запасной, Google без капчи
+1. googlesearch-python — Google с локального IP, стабильно без rate-limit
+2. DuckDuckGo (duckduckgo-search) — запасной, нужен lxml
 3. bus.gov.ru API — государственный реестр учреждений с официальными сайтами
 4. Перебор типовых URL по названию МО + региону
 """
@@ -102,16 +102,30 @@ def _validate_url(url: str) -> str | None:
     return None
 
 
-# ── Уровень 1: DuckDuckGo (основной) ─────────────────────────
+# ── Уровень 1: googlesearch-python (основной) ────────────────
+
+def _google_search(query: str) -> list[str]:
+    """Google с локального IP — стабильно, без rate-limit на малых объёмах."""
+    try:
+        from googlesearch import search
+        time.sleep(SEARCH_DELAY_S)
+        results = list(search(query, num_results=5, lang="ru", sleep_interval=2))
+        return results
+    except ImportError:
+        log.debug("googlesearch-python не установлен")
+        return []
+    except Exception as e:
+        log.warning(f"googlesearch ошибка: {e}")
+        return []
+
+
+# ── Уровень 2: DuckDuckGo (запасной) ─────────────────────────
 
 def _ddg_search(query: str) -> list[str]:
-    """
-    DuckDuckGo через duckduckgo-search.
-    backend="lite" — меньше rate-limit, работает без прокси.
-    """
+    """DuckDuckGo через duckduckgo-search. Требует lxml для backend=lite."""
     try:
         from duckduckgo_search import DDGS
-        time.sleep(max(SEARCH_DELAY_S, 5.0))  # DDG требует минимум 5 сек
+        time.sleep(max(SEARCH_DELAY_S, 6.0))
         results = DDGS().text(query, max_results=5, region="ru-ru", backend="lite")
         return [r["href"] for r in results if r.get("href")]
     except ImportError:
@@ -119,22 +133,6 @@ def _ddg_search(query: str) -> list[str]:
         return []
     except Exception as e:
         log.warning(f"DuckDuckGo ошибка: {e}")
-        return []
-
-
-# ── Уровень 2: googlesearch-python (запасной) ─────────────────
-
-def _google_search(query: str) -> list[str]:
-    try:
-        from googlesearch import search
-        time.sleep(SEARCH_DELAY_S)
-        results = list(search(query, num_results=5, lang="ru", sleep_interval=1))
-        return results
-    except ImportError:
-        log.debug("googlesearch-python не установлен")
-        return []
-    except Exception as e:
-        log.warning(f"googlesearch ошибка: {e}")
         return []
 
 
@@ -245,18 +243,18 @@ def find_mo_site(
     query = f"{short_name} {city} официальный сайт".strip()
     log.debug(f"[{mo_id}] Ищем: '{short_name}'")
 
-    # Уровень 1: DuckDuckGo
-    for url in _ddg_search(query):
-        validated = _validate_url(url)
-        if validated:
-            log.info(f"[{mo_id}] ✓ DuckDuckGo: {validated}")
-            return validated
-
-    # Уровень 2: Google (запасной)
+    # Уровень 1: Google (основной)
     for url in _google_search(query):
         validated = _validate_url(url)
         if validated:
             log.info(f"[{mo_id}] ✓ Google: {validated}")
+            return validated
+
+    # Уровень 2: DuckDuckGo (запасной)
+    for url in _ddg_search(query):
+        validated = _validate_url(url)
+        if validated:
+            log.info(f"[{mo_id}] ✓ DuckDuckGo: {validated}")
             return validated
 
     # Уровень 3: bus.gov.ru
