@@ -30,8 +30,8 @@ def test_dgis(mo_name: str, city: str):
         params = {
             "key":       DGIS_API_KEY,
             "q":         f"{mo_name} {city}",
-            "fields":    "items.contact_groups",
-            "page_size": 5,
+            "fields":    "items.contact_groups,items.links,items.org",
+            "page_size": 3,
             "locale":    "ru_RU",
         }
         resp = requests.get(DGIS_URL, params=params, timeout=10)
@@ -45,20 +45,16 @@ def test_dgis(mo_name: str, city: str):
         items = data.get("result", {}).get("items", [])
         print(f"Найдено организаций: {len(items)}")
 
-        for item in items:
-            name = item.get("name", "—")
-            url  = item.get("url", "")
-
-            # Сайт из контактов
-            website = ""
-            for group in item.get("contact_groups", []):
-                for c in group.get("contacts", []):
-                    if c.get("type") == "website":
-                        website = c.get("value", "")
-
-            site = url or website or "—"
-            print(f"  [{item.get('id','')}] {name[:55]}")
-            print(f"         сайт: {site}")
+        # Показываем первую организацию полностью — смотрим структуру
+        if items:
+            import json
+            first = items[0]
+            print(f"\n  Первая организация — все поля:")
+            print(f"  name: {first.get('name')}")
+            print(f"  url:  {first.get('url')}")
+            print(f"  contact_groups RAW: {json.dumps(first.get('contact_groups', []), ensure_ascii=False)[:500]}")
+            print(f"  links RAW: {json.dumps(first.get('links', []), ensure_ascii=False)[:300]}")
+            print(f"  org RAW:   {json.dumps(first.get('org', {}), ensure_ascii=False)[:300]}")
 
     except Exception as e:
         print(f"ОШИБКА: {e}")
