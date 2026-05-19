@@ -28,7 +28,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 ANTHROPIC_MODEL   = "claude-sonnet-4-20250514"
 
 # 2GIS API — получить на dev.2gis.ru (бесплатно, 25 000 запросов/день)
-DGIS_API_KEY = "ВАШ_КЛЮЧ_2GIS"
+DGIS_API_KEY = "5da76007-847e-4b33-b07e-780da4047899"
 
 WORKERS         = 2   # поиск чувствителен к rate-limit; для парсинга можно поднять до 5
 SEARCH_DELAY_S  = 2.0
