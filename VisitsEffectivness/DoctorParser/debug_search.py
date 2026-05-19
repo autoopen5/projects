@@ -1,13 +1,14 @@
 """
 debug_search.py — диагностика поиска сайтов МО.
 Запуск: python debug_search.py
-
-Показывает что реально возвращают поисковики и почему URL не проходят валидацию.
 """
 import requests
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+
+import urllib3
+urllib3.disable_warnings()
 
 HEADERS = {
     "User-Agent": (
@@ -16,116 +17,95 @@ HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "ru-RU,ru;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
 TEST_QUERIES = [
     "Городская Поликлиника № 3 Ульяновск официальный сайт",
     "Ульяновская Областная Клиническая Больница официальный сайт",
-    "Алтайский Краевой Онкологический Диспансер официальный сайт",
 ]
 
 
-def test_duckduckgo(query: str):
-    print(f"\n{'='*60}")
-    print(f"ЗАПРОС: {query}")
-    print(f"{'='*60}")
+def test_google(query: str):
+    print(f"\n-- Google для: {query[:60]}")
+    print("   запрос...", end=" ", flush=True)
+
+    def _do_search():
+        from googlesearch import search
+        return list(search(query, num_results=5, lang="ru", sleep_interval=1, timeout=10))
+
     try:
-        from duckduckgo_search import DDGS
-        print("DDG: ждём 6 сек (rate-limit)...")
-        time.sleep(6)
-        results = DDGS().text(query, max_results=5, region="ru-ru", backend="lite")
-        print(f"DuckDuckGo: найдено {len(results)} результатов")
-        for r in results:
-            print(f"  → {r.get('href')}  |  {r.get('title', '')[:60]}")
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_do_search)
+            results = future.result(timeout=20)
+        print(f"найдено {len(results)}")
+        for url in results:
+            print(f"  → {url}")
+    except FuturesTimeout:
+        print("ТАЙМАУТ (>20 сек) — Google блокирует или нет сети")
     except ImportError:
-        print("duckduckgo-search не установлен: pip install duckduckgo-search")
+        print("googlesearch-python не установлен")
     except Exception as e:
-        print(f"ОШИБКА DuckDuckGo: {e}")
+        print(f"ОШИБКА: {e}")
 
 
 def test_yandex(query: str):
-    print(f"\n-- Яндекс для: {query[:50]}")
+    print(f"\n-- Яндекс для: {query[:60]}")
+    print("   запрос...", end=" ", flush=True)
     try:
         resp = requests.get(
             "https://yandex.ru/search/",
             params={"text": query, "lr": "225"},
             headers=HEADERS,
-            timeout=15,
+            timeout=10,
         )
-        print(f"HTTP статус: {resp.status_code}, размер: {len(resp.text)} байт")
-
+        print(f"HTTP {resp.status_code}, {len(resp.text)} байт")
         soup = BeautifulSoup(resp.text, "html.parser")
-        selectors = [
-            "a.organic__url", "a[data-log-node]",
-            "h2.organic__title a", ".serp-item a", ".organic a",
-        ]
-        found_any = False
-        for sel in selectors:
-            links = soup.select(sel)
-            external = [
-                a.get("href", "") for a in links
-                if a.get("href", "").startswith("http")
-                and "yandex" not in a.get("href", "")
-            ]
-            if external:
-                print(f"  {sel}: {len(external)} ссылок → {external[0]}")
-                found_any = True
-        if not found_any:
-            print("  Ни один селектор не нашёл ссылок (капча или смена вёрстки)")
-
+        urls = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.startswith("http") and "yandex" not in href:
+                urls.append(href)
+        if urls:
+            print(f"  Найдено ссылок: {len(urls)}")
+            for u in urls[:5]:
+                print(f"  → {u}")
+        else:
+            print("  Ссылок нет — скорее всего капча")
     except Exception as e:
-        print(f"ОШИБКА Яндекс: {e}")
+        print(f"ОШИБКА: {e}")
 
 
 def test_bus_gov(query: str):
     print(f"\n-- bus.gov.ru для: {query[:50]}")
+    print("   запрос...", end=" ", flush=True)
     try:
         resp = requests.get(
             "https://bus.gov.ru/pub/agency/search.json",
             params={"searchString": query[:60], "page": 0, "size": 3},
             headers={"User-Agent": "MO-Research/1.0", "Accept": "application/json"},
-            timeout=4,
+            timeout=5,
             verify=False,
         )
-        print(f"HTTP статус: {resp.status_code}")
-        if resp.status_code == 200:
+        print(f"HTTP {resp.status_code}, тело: {repr(resp.text[:100])}")
+        if resp.status_code == 200 and resp.text.strip():
             data = resp.json()
             agencies = data.get("agencies") or data.get("data") or []
-            print(f"Найдено учреждений: {len(agencies)}")
+            print(f"  Учреждений: {len(agencies)}")
             for ag in agencies[:3]:
                 site = ag.get("site") or ag.get("siteUrl") or ag.get("webSite") or "—"
                 print(f"  {ag.get('fullName', '')[:50]} → {site}")
     except Exception as e:
-        print(f"ОШИБКА bus.gov.ru: {e}")
-
-
-def test_google(query: str):
-    print(f"\n-- Google для: {query[:60]}")
-    try:
-        from googlesearch import search
-        time.sleep(2)
-        results = list(search(query, num_results=5, lang="ru", sleep_interval=2))
-        print(f"Google: найдено {len(results)} результатов")
-        for url in results:
-            print(f"  → {url}")
-    except ImportError:
-        print("googlesearch-python не установлен")
-    except Exception as e:
-        print(f"ОШИБКА Google: {e}")
+        print(f"ОШИБКА: {e}")
 
 
 if __name__ == "__main__":
-    import urllib3
-    urllib3.disable_warnings()
+    q = TEST_QUERIES[0]
+    print(f"Тестируем: {q}\n")
 
-    for q in TEST_QUERIES[:2]:
-        # Google — основной
-        test_google(q)
-        # DDG — запасной
-        test_duckduckgo(q)
-        # bus.gov.ru
-        test_bus_gov(q.split()[0] + " " + q.split()[1])
-        time.sleep(3)
+    test_google(q)
+    time.sleep(3)
+    test_yandex(q)
+    time.sleep(2)
+    test_bus_gov("Городская Поликлиника 3 Ульяновск")
 
     print("\n\nДиагностика завершена.")
