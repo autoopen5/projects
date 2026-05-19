@@ -143,33 +143,29 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
     """
     Отправляет текст страницы в Claude, получает JSON со списком врачей.
     """
-    import urllib.request
-    import urllib.error
-
     prompt = EXTRACT_PROMPT.format(page_text=page_text)
 
-    payload = json.dumps({
-        "model":      ANTHROPIC_MODEL,
-        "max_tokens": 4096,
-        "messages":   [{"role": "user", "content": prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "x-api-key":         ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type":      "application/json",
-        },
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = json.loads(resp.read())
-        raw = body["content"][0]["text"].strip()
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key":         ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+            },
+            json={
+                "model":      ANTHROPIC_MODEL,
+                "max_tokens": 4096,
+                "messages":   [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
+            verify=False,
+        )
+        if resp.status_code != 200:
+            log.warning(f"LLM error {resp.status_code}: {resp.text[:200]}")
+            return []
 
+        raw = resp.json()["content"][0]["text"].strip()
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if not match:
             return []
