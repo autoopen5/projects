@@ -105,7 +105,7 @@ def _find_doctors_page(base_url: str, html: str) -> str | None:
     return None
 
 
-def _clean_html(html: str, max_chars: int = 12_000) -> str:
+def _clean_html(html: str, max_chars: int = 30_000) -> str:
     """Очищает HTML: убирает script/style/nav, оставляет текст."""
     try:
         soup = BeautifulSoup(html, "html.parser")

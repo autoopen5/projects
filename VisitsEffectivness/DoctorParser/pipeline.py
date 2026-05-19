@@ -13,7 +13,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 
 import config
 import db
@@ -78,7 +78,7 @@ def process_mo(row: dict) -> dict:
             return {"mo_id": mo_id, "status": "no_doctors"}
 
         # ── Шаг 3: запись в БД ───────────────────────────────
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         rows = [
             {
                 "mo_id":       mo_id,
