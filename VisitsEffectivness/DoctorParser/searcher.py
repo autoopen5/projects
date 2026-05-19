@@ -43,6 +43,7 @@ BLACKLIST_DOMAINS = {
     "bus.gov.ru", "zakupki.gov.ru", "nalog.ru", "rusprofile.ru",
     "list-org.com", "kartoteka.ru", "sbis.ru", "kontur.ru",
     "doctor73.ru", "med.ulgov.ru", "doctu.ru",
+    "k-vrachu.ru", "kamgov.ru", "zdrav.mosreg.ru",
 }
 
 MO_SITE_SIGNALS = [
