@@ -23,7 +23,8 @@ HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept-Encoding": "gzip, deflate",
 }
 
 DOCTOR_PAGE_HINTS = [
@@ -51,6 +52,9 @@ def _fetch(url: str, retries: int = MAX_RETRIES) -> str | None:
                 verify=False,
             )
             if resp.status_code == 200:
+                ct = resp.headers.get("Content-Type", "")
+                if not any(t in ct for t in ("text", "html", "xml")):
+                    return None
                 resp.encoding = resp.apparent_encoding or "utf-8"
                 return resp.text
             log.debug(f"HTTP {resp.status_code} для {url}")
@@ -97,11 +101,14 @@ def _find_doctors_page(base_url: str, html: str) -> str | None:
 
 def _clean_html(html: str, max_chars: int = 12_000) -> str:
     """Очищает HTML: убирает script/style/nav, оставляет текст."""
-    soup = BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "nav", "footer",
-                     "header", "noscript", "iframe", "svg"]):
-        tag.decompose()
-    text = soup.get_text(separator="\n", strip=True)
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer",
+                         "header", "noscript", "iframe", "svg"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+    except Exception:
+        text = re.sub(r"<[^>]+>", " ", html)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text[:max_chars]
 

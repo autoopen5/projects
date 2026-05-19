@@ -9,6 +9,7 @@ pipeline.py — основной оркестратор.
 """
 import argparse
 import logging
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -105,7 +106,7 @@ def process_mo(row: dict) -> dict:
         return {"mo_id": mo_id, "status": "parsed", "cnt": doctors_cnt}
 
     except Exception as e:
-        msg = str(e)[:200]
+        msg = re.sub(r"[^\x20-\x7EЀ-ӿ\s]", "?", str(e))[:200]
         log.error(f"[{mo_id}] Необработанная ошибка: {msg}")
         db.update_queue_status(mo_id, "parse_failed", error_msg=msg)
         return {"mo_id": mo_id, "status": "error", "error": msg}

@@ -42,6 +42,7 @@ BLACKLIST_DOMAINS = {
     "t.me", "telegram.me", "rutube.ru", "youtube.com",
     "bus.gov.ru", "zakupki.gov.ru", "nalog.ru", "rusprofile.ru",
     "list-org.com", "kartoteka.ru", "sbis.ru", "kontur.ru",
+    "doctor73.ru", "med.ulgov.ru", "doctu.ru",
 }
 
 MO_SITE_SIGNALS = [
