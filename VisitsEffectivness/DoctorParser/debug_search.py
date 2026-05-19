@@ -3,6 +3,8 @@ debug_search.py — диагностика поиска сайтов МО чер
 Запуск: python debug_search.py
 """
 import requests
+import base64
+import xml.etree.ElementTree as ET
 import urllib3
 urllib3.disable_warnings()
 
@@ -41,27 +43,32 @@ def test_yandex_cloud(mo_name: str, city: str):
         "folderId": YANDEX_SEARCH_FOLDER,
     }
 
-    endpoints = [
-        ("POST", "https://searchapi.api.cloud.yandex.net/v2/web/search"),
-        ("GET",  "https://searchapi.api.cloud.yandex.net/v2/web/search"),
-        ("POST", "https://searchapi.api.cloud.yandex.net/v1/search"),
-    ]
+    url = "https://searchapi.api.cloud.yandex.net/v2/web/search"
+    try:
+        resp = requests.post(url, headers=headers, json=body, timeout=10)
+        print(f"HTTP {resp.status_code}")
+        if resp.status_code != 200:
+            print(f"Ошибка: {resp.text[:300]}")
+            return
 
-    for method, url in endpoints:
-        try:
-            if method == "POST":
-                resp = requests.post(url, headers=headers, json=body, timeout=10)
-            else:
-                resp = requests.get(url, headers=headers,
-                                    params={"query": query, "folderId": YANDEX_SEARCH_FOLDER},
-                                    timeout=10)
-            print(f"\n{method} {url}")
-            print(f"HTTP {resp.status_code}")
-            print(f"Ответ: {resp.text[:400]}")
-            if resp.status_code == 200:
-                break
-        except Exception as e:
-            print(f"{method} {url} → ОШИБКА: {e}")
+        # rawData — base64-encoded XML
+        raw_b64 = resp.json().get("rawData", "")
+        xml_bytes = base64.b64decode(raw_b64)
+        xml_text  = xml_bytes.decode("utf-8")
+
+        root = ET.fromstring(xml_text)
+        ns   = {"ya": ""}  # Яндекс XML без namespace
+
+        urls = [doc.findtext("url") for doc in root.iter("doc") if doc.findtext("url")]
+        titles = [doc.findtext("title") for doc in root.iter("doc")]
+
+        print(f"Найдено результатов: {len(urls)}")
+        for u, t in zip(urls[:6], titles):
+            print(f"  → {u}")
+            print(f"     {(t or '')[:70]}")
+
+    except Exception as e:
+        print(f"ОШИБКА: {e}")
 
 
 if __name__ == "__main__":
