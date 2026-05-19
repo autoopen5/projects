@@ -21,8 +21,8 @@ COL_MO_CITY   = "areaName"
 # Фильтр: не брать удалённые МО (deleteDate IS NOT NULL = удалена)
 NSI_EXTRA_FILTER = "AND deleteDate IS NULL"
 
-TBL_QUEUE     = "NSI.pipeline_queue"
-TBL_DOCTORS   = "NSI.doctors_parsed"
+TBL_QUEUE     = "grushko_iv.pipeline_queue"
+TBL_DOCTORS   = "grushko_iv.doctors_parsed"
 
 ANTHROPIC_API_KEY = "sk-ant-..."
 ANTHROPIC_MODEL   = "claude-sonnet-4-20250514"
