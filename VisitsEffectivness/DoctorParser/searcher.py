@@ -106,13 +106,13 @@ def _validate_url(url: str) -> str | None:
 
 def _ddg_search(query: str) -> list[str]:
     """
-    DuckDuckGo через duckduckgo-search — не блокирует, не требует ключа.
-    pip install duckduckgo-search
+    DuckDuckGo через duckduckgo-search.
+    backend="lite" — меньше rate-limit, работает без прокси.
     """
     try:
         from duckduckgo_search import DDGS
-        time.sleep(SEARCH_DELAY_S)
-        results = DDGS().text(query, max_results=5, region="ru-ru")
+        time.sleep(max(SEARCH_DELAY_S, 5.0))  # DDG требует минимум 5 сек
+        results = DDGS().text(query, max_results=5, region="ru-ru", backend="lite")
         return [r["href"] for r in results if r.get("href")]
     except ImportError:
         log.debug("duckduckgo-search не установлен")
@@ -163,7 +163,7 @@ def _bus_gov_search(mo_name: str, inn: str, ogrn: str) -> str | None:
                 BUS_GOV_URL,
                 params=params,
                 headers=HEADERS,
-                timeout=10,
+                timeout=4,  # короткий таймаут — если не отвечает, пропускаем
                 verify=False,
             )
             if resp.status_code != 200:

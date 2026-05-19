@@ -32,7 +32,9 @@ def test_duckduckgo(query: str):
     print(f"{'='*60}")
     try:
         from duckduckgo_search import DDGS
-        results = DDGS().text(query, max_results=5, region="ru-ru")
+        print("DDG: ждём 6 сек (rate-limit)...")
+        time.sleep(6)
+        results = DDGS().text(query, max_results=5, region="ru-ru", backend="lite")
         print(f"DuckDuckGo: найдено {len(results)} результатов")
         for r in results:
             print(f"  → {r.get('href')}  |  {r.get('title', '')[:60]}")
@@ -83,7 +85,7 @@ def test_bus_gov(query: str):
             "https://bus.gov.ru/pub/agency/search.json",
             params={"searchString": query[:60], "page": 0, "size": 3},
             headers={"User-Agent": "MO-Research/1.0", "Accept": "application/json"},
-            timeout=10,
+            timeout=4,
             verify=False,
         )
         print(f"HTTP статус: {resp.status_code}")
