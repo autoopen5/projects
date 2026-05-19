@@ -134,7 +134,7 @@ def run(limit: int | None = None, retry: bool = False):
     )
     log.info(f"Добавлено в очередь: {added} МО")
 
-    statuses = ["url_failed", "parse_failed"] if retry else ["url_found", "pending"]
+    statuses = ["url_failed", "parse_failed", "no_doctors", "url_found"] if retry else ["url_found", "pending"]
     fetch_n  = limit or config.BATCH_SIZE
 
     rows = []
