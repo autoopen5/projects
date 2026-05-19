@@ -28,7 +28,14 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 ANTHROPIC_MODEL   = "claude-sonnet-4-20250514"
 
 # 2GIS API — получить на dev.2gis.ru (бесплатно, 25 000 запросов/день)
-DGIS_API_KEY = "5da76007-847e-4b33-b07e-780da4047899"
+DGIS_API_KEY = "ВАШ_КЛЮЧ_2GIS"
+
+# Яндекс Cloud Search API — console.yandex.cloud
+# 1. IAM → Сервисные аккаунты → создать → роль search-api.webSearch.user
+# 2. Сервисный аккаунт → API-ключи → создать
+# 3. Folder ID из URL консоли
+YANDEX_SEARCH_KEY    = "ВАША_API_КЛЮЧ"
+YANDEX_SEARCH_FOLDER = "ВАША_FOLDER_ID"
 
 WORKERS         = 2   # поиск чувствителен к rate-limit; для парсинга можно поднять до 5
 SEARCH_DELAY_S  = 2.0

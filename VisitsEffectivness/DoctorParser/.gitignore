@@ -4,3 +4,4 @@ __pycache__/
 output/
 *.log
 geocode_cache.json
+config.py
