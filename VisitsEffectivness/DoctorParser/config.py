@@ -37,6 +37,9 @@ DGIS_API_KEY = "5da76007-847e-4b33-b07e-780da4047899"
 YANDEX_SEARCH_KEY    = "AQVNx6L2x-qkgdhEc8Ard-C-lyVl85uI5m3PcVsV"
 YANDEX_SEARCH_FOLDER = "b1gn7gbculvpn3qbjs2t"
 
+# Сервисный аккаунт ai-doctor-parser (роль ai.languageModels.user)
+YANDEX_GPT_KEY = "КЛЮЧ_ОТ_AI_DOCTOR_PARSER"
+
 WORKERS         = 2   # поиск чувствителен к rate-limit; для парсинга можно поднять до 5
 SEARCH_DELAY_S  = 2.0
 FETCH_DELAY_S   = 1.5

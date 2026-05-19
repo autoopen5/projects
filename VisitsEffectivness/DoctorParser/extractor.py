@@ -12,7 +12,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 from config import (
-    YANDEX_SEARCH_KEY, YANDEX_SEARCH_FOLDER,
+    YANDEX_GPT_KEY, YANDEX_SEARCH_FOLDER,
     FETCH_TIMEOUT_S, FETCH_DELAY_S, MAX_RETRIES,
 )
 
@@ -149,7 +149,7 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
         resp = requests.post(
             "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
             headers={
-                "Authorization": f"Api-Key {YANDEX_SEARCH_KEY}",
+                "Authorization": f"Api-Key {YANDEX_GPT_KEY}",
                 "Content-Type":  "application/json",
             },
             json={
