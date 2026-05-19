@@ -1,125 +1,71 @@
 """
-debug_search.py — диагностика поиска сайтов МО.
+debug_search.py — диагностика поиска сайтов МО через 2GIS.
 Запуск: python debug_search.py
 """
-import socket
 import requests
-import time
-from bs4 import BeautifulSoup
-
 import urllib3
 urllib3.disable_warnings()
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "ru-RU,ru;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
+from config import DGIS_API_KEY
+
+DGIS_URL = "https://catalog.api.2gis.com/3.0/items"
 
 TEST_MO = [
     ("Городская Поликлиника № 3", "Ульяновск"),
     ("Областная Клиническая Больница", "Ульяновск"),
+    ("Городская Поликлиника № 1", "Москва"),
 ]
 
 
-def test_yandex(name: str, city: str):
-    query = f"{name} {city} официальный сайт"
+def test_dgis(mo_name: str, city: str):
     print(f"\n{'='*60}")
-    print(f"Яндекс: {query}")
+    print(f"2GIS: {mo_name} / {city}")
     print(f"{'='*60}")
+
+    if not DGIS_API_KEY or DGIS_API_KEY == "ВАШ_КЛЮЧ_2GIS":
+        print("КЛЮЧ НЕ ЗАДАН — вставь DGIS_API_KEY в config.py")
+        return
+
     try:
-        resp = requests.get(
-            "https://yandex.ru/search/",
-            params={"text": query, "lr": "225"},
-            headers=HEADERS,
-            timeout=10,
-        )
-        print(f"HTTP {resp.status_code}, {len(resp.text)} байт")
+        params = {
+            "key":       DGIS_API_KEY,
+            "q":         f"{mo_name} {city}",
+            "fields":    "items.contact_groups",
+            "page_size": 5,
+            "locale":    "ru_RU",
+        }
+        resp = requests.get(DGIS_URL, params=params, timeout=10)
+        print(f"HTTP {resp.status_code}")
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        if resp.status_code != 200:
+            print(f"Тело ответа: {resp.text[:300]}")
+            return
 
-        # Собираем все внешние ссылки из результатов
-        found = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if (href.startswith("http")
-                    and "yandex" not in href
-                    and "ya.ru" not in href):
-                found.append(href)
+        data = resp.json()
+        items = data.get("result", {}).get("items", [])
+        print(f"Найдено организаций: {len(items)}")
 
-        if found:
-            print(f"Найдено внешних ссылок: {len(found)}")
-            for url in found[:8]:
-                print(f"  → {url}")
-        else:
-            # Показываем кусок HTML — понять дали ли капчу
-            print("Внешних ссылок нет. Первые 500 символов HTML:")
-            print(resp.text[:500])
+        for item in items:
+            name = item.get("name", "—")
+            url  = item.get("url", "")
 
-    except requests.Timeout:
-        print("ТАЙМАУТ (10 сек) — Яндекс не отвечает")
+            # Сайт из контактов
+            website = ""
+            for group in item.get("contact_groups", []):
+                for c in group.get("contacts", []):
+                    if c.get("type") == "website":
+                        website = c.get("value", "")
+
+            site = url or website or "—"
+            print(f"  [{item.get('id','')}] {name[:55]}")
+            print(f"         сайт: {site}")
+
     except Exception as e:
         print(f"ОШИБКА: {e}")
-
-
-def test_bus_gov(name: str, city: str):
-    query = f"{name} {city}"
-    print(f"\n-- bus.gov.ru: {query}")
-    try:
-        resp = requests.get(
-            "https://bus.gov.ru/pub/agency/search.json",
-            params={"searchString": name, "page": 0, "size": 5},
-            headers={"User-Agent": "MO-Research/1.0", "Accept": "application/json"},
-            timeout=5,
-            verify=False,
-        )
-        print(f"HTTP {resp.status_code}, тело: {repr(resp.text[:200])}")
-        if resp.status_code == 200 and resp.text.strip():
-            data = resp.json()
-            agencies = data.get("agencies") or data.get("data") or []
-            print(f"Учреждений: {len(agencies)}")
-            for ag in agencies[:3]:
-                site = ag.get("site") or ag.get("siteUrl") or ag.get("webSite") or "—"
-                print(f"  {ag.get('fullName', '')[:60]} → {site}")
-    except requests.Timeout:
-        print("ТАЙМАУТ")
-    except Exception as e:
-        print(f"ОШИБКА: {e}")
-
-
-def test_url_guess(name: str, city: str):
-    """Проверяем угадывание URL без поисковиков."""
-    import re
-    print(f"\n-- Перебор URL: {name} {city}")
-    num = re.search(r"№\s*(\d+)", name)
-    num = num.group(1) if num else ""
-    city_c = re.sub(r"\s+", "", city.lower())
-
-    candidates = []
-    name_l = name.lower()
-    if "поликлиник" in name_l:
-        candidates += [f"https://gp{num}.{city_c}.ru", f"https://gp{num}{city_c}.ru"]
-    if "областная клинич" in name_l:
-        candidates += [f"https://okb.{city_c}.ru", f"https://oblbolnica.{city_c}.ru"]
-
-    for url in candidates:
-        try:
-            r = requests.head(url, headers=HEADERS, timeout=4, allow_redirects=True, verify=False)
-            print(f"  {url} → HTTP {r.status_code}")
-        except Exception as e:
-            print(f"  {url} → {type(e).__name__}")
 
 
 if __name__ == "__main__":
     for name, city in TEST_MO:
-        test_yandex(name, city)
-        time.sleep(2)
-        test_bus_gov(name, city)
-        test_url_guess(name, city)
-        print()
+        test_dgis(name, city)
 
     print("\nДиагностика завершена.")

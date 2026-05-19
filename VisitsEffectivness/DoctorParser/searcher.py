@@ -1,23 +1,21 @@
 """
 searcher.py — поиск сайта МО.
 
-Стратегия (4 уровня):
-1. googlesearch-python — Google с локального IP, стабильно без rate-limit
-2. DuckDuckGo (duckduckgo-search) — запасной, нужен lxml
-3. bus.gov.ru API — государственный реестр учреждений с официальными сайтами
-4. Перебор типовых URL по названию МО + региону
+Стратегия:
+1. 2GIS Catalog API — официальный, без капчи, 25к запросов/день
+2. Перебор типовых URL (латиница, паттерны гос. сайтов)
 """
 import re
 import time
 import logging
 import requests
 
-# Корпоративный SSL-прокси — отключаем верификацию сертификата
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
-from config import SEARCH_DELAY_S, FETCH_TIMEOUT_S
+from config import FETCH_TIMEOUT_S, FETCH_DELAY_S, DGIS_API_KEY
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +35,6 @@ BLACKLIST_DOMAINS = {
     "wikipedia.org", "vk.com", "ok.ru", "hh.ru", "avito.ru",
     "bus.gov.ru", "zakupki.gov.ru", "nalog.ru", "rusprofile.ru",
     "list-org.com", "kartoteka.ru", "sbis.ru", "kontur.ru",
-    "reformagkh.ru", "gisgkh.ru", "duckduckgo.com",
 }
 
 MO_SITE_SIGNALS = [
@@ -45,6 +42,28 @@ MO_SITE_SIGNALS = [
     r"больниц", r"медицин", r"специалист", r"прием",
     r"стационар", r"консультация",
 ]
+
+# Латинские slug-и городов для URL-перебора
+CITY_SLUGS = {
+    "Москва": "moscow", "Санкт-Петербург": "spb",
+    "Новосибирск": "nsk", "Екатеринбург": "ekb",
+    "Казань": "kazan", "Нижний Новгород": "nnov",
+    "Челябинск": "chel", "Самара": "samara",
+    "Уфа": "ufa", "Ростов-на-Дону": "rostov",
+    "Ульяновск": "ulyanovsk", "Омск": "omsk",
+    "Красноярск": "krsk", "Воронеж": "voronezh",
+    "Пермь": "perm", "Волгоград": "volgograd",
+    "Краснодар": "krasnodar", "Саратов": "saratov",
+    "Тюмень": "tyumen", "Тольятти": "tlt",
+    "Ижевск": "izhevsk", "Барнаул": "barnaul",
+    "Иркутск": "irkutsk", "Хабаровск": "khabarovsk",
+    "Ярославль": "yaroslavl", "Владивосток": "vlad",
+    "Махачкала": "makhachkala", "Томск": "tomsk",
+    "Оренбург": "orenburg", "Кемерово": "kemerovo",
+    "Рязань": "ryazan", "Астрахань": "astrakhan",
+    "Пенза": "penza", "Липецк": "lipetsk",
+    "Тула": "tula", "Киров": "kirov",
+}
 
 
 def _is_blacklisted(url: str) -> bool:
@@ -60,8 +79,31 @@ def _looks_like_mo_site(html: str) -> bool:
     return sum(1 for s in MO_SITE_SIGNALS if re.search(s, text)) >= 2
 
 
+def _validate_url(url: str) -> str | None:
+    """Проверяет что URL доступен и похож на сайт МО."""
+    if not url or _is_blacklisted(url):
+        return None
+    try:
+        head = requests.head(
+            url, headers=HEADERS, timeout=6,
+            allow_redirects=True, verify=False,
+        )
+        final_url = head.url
+        if _is_blacklisted(final_url):
+            return None
+        get = requests.get(
+            final_url, headers=HEADERS,
+            timeout=FETCH_TIMEOUT_S, verify=False,
+        )
+        if _looks_like_mo_site(get.text):
+            return final_url
+    except Exception:
+        pass
+    return None
+
+
 def _normalize_mo_name(name: str) -> str:
-    """Убирает казённые префиксы, оставляет суть."""
+    """Убирает казённые префиксы типа 'ГБУЗ', оставляет суть."""
     prefixes = [
         r"ФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ БЮДЖЕТНОЕ (УЧРЕЖДЕНИЕ|НАУЧНОЕ УЧРЕЖДЕНИЕ|ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ)",
         r"(КРАЕВОЕ|ОБЛАСТНОЕ|ГОРОДСКОЕ|РАЙОННОЕ) ГОСУДАРСТВЕННОЕ (БЮДЖЕТНОЕ|КАЗЁННОЕ|КАЗЕННОЕ|АВТОНОМНОЕ) УЧРЕЖДЕНИЕ ЗДРАВООХРАНЕНИЯ",
@@ -77,160 +119,97 @@ def _normalize_mo_name(name: str) -> str:
     for p in prefixes:
         result = re.sub(p, "", result, flags=re.IGNORECASE).strip()
     result = result.strip('"\'«»').strip()
-    result = re.sub(r"\s+", " ", result)
-    return result if result else name
+    return re.sub(r"\s+", " ", result) or name
 
 
-def _validate_url(url: str) -> str | None:
-    """Проверяет что URL доступен и похож на сайт МО."""
-    if _is_blacklisted(url):
+# ── Уровень 1: 2GIS Catalog API ──────────────────────────────
+
+DGIS_URL = "https://catalog.api.2gis.com/3.0/items"
+
+def _dgis_search(mo_name: str, city: str) -> str | None:
+    """
+    Ищет МО в 2GIS и возвращает URL сайта из карточки организации.
+    Самый надёжный источник — данные актуальные, API официальный.
+    """
+    if not DGIS_API_KEY or DGIS_API_KEY == "ВАШ_КЛЮЧ_2GIS":
+        log.debug("2GIS API ключ не задан")
         return None
+
     try:
-        head = requests.head(
-            url, headers=HEADERS, timeout=6, allow_redirects=True, verify=False
-        )
-        final_url = head.url
-        if _is_blacklisted(final_url):
-            return None
-        get = requests.get(
-            final_url, headers=HEADERS, timeout=FETCH_TIMEOUT_S, verify=False
-        )
-        if _looks_like_mo_site(get.text):
-            return final_url
-    except Exception:
-        pass
-    return None
+        time.sleep(0.5)
+        params = {
+            "key":       DGIS_API_KEY,
+            "q":         f"{mo_name} {city}",
+            "fields":    "items.contact_groups",
+            "page_size": 5,
+            "locale":    "ru_RU",
+        }
+        resp = requests.get(DGIS_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        items = resp.json().get("result", {}).get("items", [])
 
+        for item in items:
+            # Прямой URL в карточке
+            url = item.get("url", "").strip()
+            if url and not _is_blacklisted(url):
+                return url if url.startswith("http") else "https://" + url
 
-# ── Уровень 1: googlesearch-python (основной) ────────────────
+            # URL в контактах
+            for group in item.get("contact_groups", []):
+                for c in group.get("contacts", []):
+                    if c.get("type") == "website":
+                        val = c.get("value", "").strip()
+                        if val and not _is_blacklisted(val):
+                            return val if val.startswith("http") else "https://" + val
 
-def _google_search(query: str) -> list[str]:
-    """Google с локального IP — стабильно, без rate-limit на малых объёмах."""
-    try:
-        from googlesearch import search
-        time.sleep(SEARCH_DELAY_S)
-        results = list(search(query, num_results=5, lang="ru", sleep_interval=2))
-        return results
-    except ImportError:
-        log.debug("googlesearch-python не установлен")
-        return []
     except Exception as e:
-        log.warning(f"googlesearch ошибка: {e}")
-        return []
-
-
-# ── Уровень 2: DuckDuckGo (запасной) ─────────────────────────
-
-def _ddg_search(query: str) -> list[str]:
-    """DuckDuckGo через duckduckgo-search. Требует lxml для backend=lite."""
-    try:
-        from duckduckgo_search import DDGS
-        time.sleep(max(SEARCH_DELAY_S, 6.0))
-        results = DDGS().text(query, max_results=5, region="ru-ru", backend="lite")
-        return [r["href"] for r in results if r.get("href")]
-    except ImportError:
-        log.debug("duckduckgo-search не установлен")
-        return []
-    except Exception as e:
-        log.warning(f"DuckDuckGo ошибка: {e}")
-        return []
-
-
-# ── Уровень 3: bus.gov.ru API ─────────────────────────────────
-
-BUS_GOV_URL = "https://bus.gov.ru/pub/agency/search.json"
-
-def _bus_gov_search(mo_name: str, inn: str, ogrn: str) -> str | None:
-    """
-    Поиск через bus.gov.ru — реестр государственных и муниципальных
-    учреждений РФ. Содержит официальные сайты МО. Открытый API.
-    """
-    time.sleep(1.0)
-
-    for query_type, query_val in [("inn", inn), ("ogrn", ogrn), ("name", mo_name[:60])]:
-        if not query_val:
-            continue
-        try:
-            params = {
-                "searchString": query_val,
-                "page":         0,
-                "size":         5,
-                "oktmoCode":    "",
-            }
-            resp = requests.get(
-                BUS_GOV_URL,
-                params=params,
-                headers=HEADERS,
-                timeout=4,  # короткий таймаут — если не отвечает, пропускаем
-                verify=False,
-            )
-            if resp.status_code != 200:
-                continue
-            data = resp.json()
-            agencies = data.get("agencies") or data.get("data") or []
-            for ag in agencies:
-                site = ag.get("site") or ag.get("siteUrl") or ag.get("webSite") or ""
-                site = site.strip()
-                if site and not site.startswith("http"):
-                    site = "https://" + site
-                if site and not _is_blacklisted(site):
-                    log.debug(f"bus.gov.ru нашёл: {site}")
-                    return site
-        except Exception as e:
-            log.debug(f"bus.gov.ru ошибка ({query_type}): {e}")
+        log.warning(f"2GIS API ошибка: {e}")
 
     return None
 
 
-# ── Уровень 4: перебор типовых URL ───────────────────────────
+# ── Уровень 2: перебор типовых URL (латиница) ─────────────────
 
-def _guess_urls(short_name: str, region: str, city: str) -> list[str]:
-    candidates = []
-
+def _guess_urls(short_name: str, city: str, region: str) -> list[str]:
     num_match = re.search(r"№\s*(\d+)", short_name)
     num = num_match.group(1) if num_match else ""
 
     abbr_map = {
-        "городская поликлиника":          f"gp{num}",
-        "детская поликлиника":             f"dp{num}",
-        "городская больница":              f"gb{num}",
-        "городская клиническая больница":  f"gkb{num}",
-        "областная клиническая больница":  "okb",
-        "областная больница":              f"ob{num}",
-        "детская больница":                f"db{num}",
-        "центральная районная больница":   "crb",
-        "психиатрическая больница":        f"pb{num}",
-        "онкологический диспансер":        "onko",
-        "кожно-венерологический":          "kvd",
-        "противотуберкулёзный":            "ptd",
-        "станция скорой":                  "ssmp",
-        "медико-санитарная часть":         f"msch{num}",
+        "городская поликлиника":         f"gp{num}",
+        "детская поликлиника":            f"dp{num}",
+        "городская больница":             f"gb{num}",
+        "городская клиническая больница": f"gkb{num}",
+        "областная клиническая больница": "okb",
+        "областная больница":             f"ob{num}",
+        "детская больница":               f"db{num}",
+        "центральная районная больница":  "crb",
+        "психиатрическая больница":       f"pb{num}",
+        "онкологический диспансер":       "onko",
+        "кожно-венерологический":         "kvd",
+        "противотуберкулёзный":           "ptd",
+        "медико-санитарная часть":        f"msch{num}",
     }
 
     name_lower = short_name.lower()
-    prefix = ""
-    for keyword, abbr in abbr_map.items():
-        if keyword in name_lower:
-            prefix = abbr
-            break
+    prefix = next((abbr for kw, abbr in abbr_map.items() if kw in name_lower), "")
 
-    city_clean = re.sub(r"\s+", "", (city or region or "").lower())[:12]
+    # Ищем slug города (латиница)
+    city_slug = CITY_SLUGS.get(city) or CITY_SLUGS.get(region, "")
+    if not city_slug:
+        # Простая транслитерация если города нет в словаре
+        tr = str.maketrans("абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+                           "abvgdeyozhziyklmnoprstufhtsчshschyeyuya")
+        city_slug = city.lower().translate(tr)[:10]
 
-    tld_variants = [
-        f"https://{prefix}.{city_clean}.ru",
-        f"https://{prefix}{city_clean}.ru",
-        f"http://{prefix}.{city_clean}.ru",
-    ] if prefix and city_clean else []
+    if not prefix or not city_slug:
+        return []
 
-    words = re.findall(r"[а-яё]+", name_lower)
-    if len(words) >= 2:
-        slug = words[0][:4] + words[1][:4]
-        tld_variants += [
-            f"https://{slug}.{city_clean}.ru",
-            f"https://{slug}{num}.{city_clean}.ru",
-        ]
-
-    return [u for u in tld_variants if len(u) > 12]
+    return [
+        f"https://{prefix}.{city_slug}.ru",
+        f"https://{prefix}{city_slug}.ru",
+        f"https://{prefix}-{city_slug}.ru",
+        f"http://{prefix}.{city_slug}.ru",
+    ]
 
 
 # ── Главная функция ────────────────────────────────────────────
@@ -240,39 +219,21 @@ def find_mo_site(
     city: str, region: str = "",
 ) -> str | None:
     short_name = _normalize_mo_name(mo_name)
-    query = f"{short_name} {city} официальный сайт".strip()
-    log.debug(f"[{mo_id}] Ищем: '{short_name}'")
+    log.debug(f"[{mo_id}] Ищем: '{short_name}' / {city}")
 
-    # Уровень 1: Google (основной)
-    for url in _google_search(query):
-        validated = _validate_url(url)
-        if validated:
-            log.info(f"[{mo_id}] ✓ Google: {validated}")
-            return validated
-
-    # Уровень 2: DuckDuckGo (запасной)
-    for url in _ddg_search(query):
-        validated = _validate_url(url)
-        if validated:
-            log.info(f"[{mo_id}] ✓ DuckDuckGo: {validated}")
-            return validated
-
-    # Уровень 3: bus.gov.ru
-    site = _bus_gov_search(short_name, inn, ogrn)
+    # Уровень 1: 2GIS API
+    site = _dgis_search(short_name, city)
     if site:
         validated = _validate_url(site)
-        if validated:
-            log.info(f"[{mo_id}] ✓ bus.gov.ru: {validated}")
-            return validated
-        # URL из гос. реестра — доверяем даже без валидации контента
-        log.info(f"[{mo_id}] ✓ bus.gov.ru (без валидации): {site}")
-        return site
+        result = validated or site  # доверяем 2GIS даже без валидации контента
+        log.info(f"[{mo_id}] ✓ 2GIS: {result}")
+        return result
 
-    # Уровень 4: перебор типовых URL
-    for url in _guess_urls(short_name, region, city):
+    # Уровень 2: перебор типовых URL
+    for url in _guess_urls(short_name, city, region):
         validated = _validate_url(url)
         if validated:
-            log.info(f"[{mo_id}] ✓ Перебор: {validated}")
+            log.info(f"[{mo_id}] ✓ Перебор URL: {validated}")
             return validated
 
     log.info(f"[{mo_id}] ✗ Не найден: {short_name}")
