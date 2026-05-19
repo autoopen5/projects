@@ -29,47 +29,39 @@ def test_yandex_cloud(mo_name: str, city: str):
 
     headers = {
         "Authorization": f"Api-Key {YANDEX_SEARCH_KEY}",
-        "Accept": "application/json",
+        "Content-Type":  "application/json",
     }
-    params = {
-        "query":    query,
+
+    # Пробуем POST с JSON телом (v2 API)
+    body = {
+        "query": {
+            "searchType": "SEARCH_TYPE_RU",
+            "queryText":  query,
+        },
         "folderId": YANDEX_SEARCH_FOLDER,
-        "lang":     "ru",
-        "region":   "ru",
-        "limit":    5,
     }
 
-    try:
-        resp = requests.get(YANDEX_SEARCH_URL, headers=headers, params=params, timeout=10)
-        print(f"HTTP {resp.status_code}")
+    endpoints = [
+        ("POST", "https://searchapi.api.cloud.yandex.net/v2/web/search"),
+        ("GET",  "https://searchapi.api.cloud.yandex.net/v2/web/search"),
+        ("POST", "https://searchapi.api.cloud.yandex.net/v1/search"),
+    ]
 
-        if resp.status_code != 200:
-            print(f"Ошибка: {resp.text[:400]}")
-            return
-
-        data = resp.json()
-        # Структура ответа Yandex Cloud Search API v2
-        results = (
-            data.get("web", {}).get("searchResults", {}).get("cluster", [])
-            or data.get("results", [])
-            or []
-        )
-        print(f"Результатов: {len(results)}")
-        for r in results[:5]:
-            # Разные варианты структуры ответа
-            url   = r.get("url") or r.get("link") or "—"
-            title = r.get("title") or r.get("headline") or "—"
-            print(f"  → {url}")
-            print(f"     {title[:70]}")
-
-        if not results:
-            # Показываем сырой ответ чтобы понять структуру
-            import json
-            print("Сырой ответ (первые 800 символов):")
-            print(json.dumps(data, ensure_ascii=False)[:800])
-
-    except Exception as e:
-        print(f"ОШИБКА: {e}")
+    for method, url in endpoints:
+        try:
+            if method == "POST":
+                resp = requests.post(url, headers=headers, json=body, timeout=10)
+            else:
+                resp = requests.get(url, headers=headers,
+                                    params={"query": query, "folderId": YANDEX_SEARCH_FOLDER},
+                                    timeout=10)
+            print(f"\n{method} {url}")
+            print(f"HTTP {resp.status_code}")
+            print(f"Ответ: {resp.text[:400]}")
+            if resp.status_code == 200:
+                break
+        except Exception as e:
+            print(f"{method} {url} → ОШИБКА: {e}")
 
 
 if __name__ == "__main__":
