@@ -27,10 +27,8 @@ TBL_DOCTORS   = "NSI.doctors_parsed"
 ANTHROPIC_API_KEY = "sk-ant-..."
 ANTHROPIC_MODEL   = "claude-sonnet-4-20250514"
 
-# Поиск: "duckduckgo" (рекомендуется) или "google"
-SEARCH_ENGINE     = "duckduckgo"
-YANDEX_SEARCH_KEY = ""
-YANDEX_SEARCH_ID  = ""
+# 2GIS API — получить на dev.2gis.ru (бесплатно, 25 000 запросов/день)
+DGIS_API_KEY = "ВАШ_КЛЮЧ_2GIS"
 
 WORKERS         = 2   # поиск чувствителен к rate-limit; для парсинга можно поднять до 5
 SEARCH_DELAY_S  = 2.0
