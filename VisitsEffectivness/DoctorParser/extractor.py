@@ -1,5 +1,5 @@
 """
-extractor.py — загрузка страницы врачей + LLM-экстракция через Anthropic API.
+extractor.py — загрузка страницы врачей + LLM-экстракция через Yandex GPT.
 """
 import re
 import json
@@ -12,7 +12,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 from config import (
-    ANTHROPIC_API_KEY, ANTHROPIC_MODEL,
+    YANDEX_SEARCH_KEY, YANDEX_SEARCH_FOLDER,
     FETCH_TIMEOUT_S, FETCH_DELAY_S, MAX_RETRIES,
 )
 
@@ -141,22 +141,25 @@ EXTRACT_PROMPT = """Ты извлекаешь структурированные
 
 def extract_doctors_llm(page_text: str) -> list[dict]:
     """
-    Отправляет текст страницы в Claude, получает JSON со списком врачей.
+    Отправляет текст страницы в YandexGPT, получает JSON со списком врачей.
     """
     prompt = EXTRACT_PROMPT.format(page_text=page_text)
 
     try:
         resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
             headers={
-                "x-api-key":         ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
+                "Authorization": f"Api-Key {YANDEX_SEARCH_KEY}",
+                "Content-Type":  "application/json",
             },
             json={
-                "model":      ANTHROPIC_MODEL,
-                "max_tokens": 4096,
-                "messages":   [{"role": "user", "content": prompt}],
+                "modelUri": f"gpt://{YANDEX_SEARCH_FOLDER}/yandexgpt-lite/latest",
+                "completionOptions": {
+                    "stream":      False,
+                    "temperature": 0.1,
+                    "maxTokens":   "4096",
+                },
+                "messages": [{"role": "user", "text": prompt}],
             },
             timeout=60,
             verify=False,
@@ -165,7 +168,7 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
             log.warning(f"LLM error {resp.status_code}: {resp.text[:200]}")
             return []
 
-        raw = resp.json()["content"][0]["text"].strip()
+        raw = resp.json()["result"]["alternatives"][0]["message"]["text"].strip()
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if not match:
             return []
