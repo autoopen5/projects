@@ -1,0 +1,16 @@
+# HTTP-запросы
+requests==2.31.0
+
+# Парсинг HTML
+beautifulsoup4==4.12.3
+lxml==5.2.2
+
+# Поиск сайтов МО (основной способ)
+duckduckgo-search==6.2.6
+
+# Google как запасной вариант
+googlesearch-python==1.2.3
+
+# Работа с данными (mo_collector, mo_open_sources)
+pandas==2.2.2
+openpyxl==3.1.2
