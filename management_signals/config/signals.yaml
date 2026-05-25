@@ -1,0 +1,49 @@
+# Конфигурация порогов и правил для фармкомпании
+
+finance:
+  revenue_drop_pct: 10          # падение выручки к плану >10% = HIGH
+  revenue_critical_pct: 20      # >20% = CRITICAL
+  cashflow_danger_days: 14      # cash gap менее 14 дней = HIGH
+  cashflow_critical_days: 7     # менее 7 дней = CRITICAL
+  receivables_overdue_days: 30  # ДЗ просрочена >30 дней
+  receivables_critical_pct: 15  # ДЗ >15% от выручки = CRITICAL
+  budget_overrun_pct: 10        # перерасход бюджета >10%
+  margin_min_pct: 25            # маржа ниже 25% = предупреждение
+
+sales:
+  plan_underperformance_pct: 15  # отставание от плана >15%
+  crm_deal_stuck_days: 7         # сделка без движения >7 дней
+  top_client_drop_pct: 30        # падение закупок топ-клиента >30%
+  funnel_conversion_drop_pct: 20 # падение конверсии воронки
+
+production:
+  plan_deviation_pct: 8          # отклонение от производственного плана
+  raw_stock_min_days: 14         # остаток сырья на <14 дней = HIGH
+  raw_stock_critical_days: 7     # <7 дней = CRITICAL
+  expiry_warning_days: 90        # срок годности заканчивается через 90 дней
+  equipment_downtime_hours: 4    # простой оборудования >4 часов
+
+hr:
+  turnover_monthly_pct: 5        # увольнения >5% в месяц
+  kpi_underperformance_pct: 20   # выполнение KPI <80%
+  vacancy_open_days: 21          # вакансия открыта >21 день
+  key_person_risk: true          # риск потери ключевых людей
+
+seasonal:
+  season_start_threshold: 120    # индекс заболеваемости > 120 = сезон начался
+  pre_season_stock_days: 45      # до начала сезона нужен запас на 45 дней
+  brands:
+    - Арбидол
+    - Анаферон
+    - Циклоферон
+    - Кагоцел
+    - Гриппферон
+
+schedule:
+  digest_time: "08:00"           # время утреннего дайджеста
+  critical_check_interval: 15    # проверка критических сигналов каждые 15 мин
+  daily_check_interval: 60       # обычные проверки каждый час
+
+telegram:
+  digest_header: "📊 Управленческий дайджест"
+  max_signals_per_message: 10
