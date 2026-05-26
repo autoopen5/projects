@@ -103,7 +103,7 @@ def process_mo(row: dict) -> dict:
             site_url=site_url,
             doctors_cnt=doctors_cnt
         )
-        return {"mo_id": mo_id, "status": "parsed", "cnt": doctors_cnt}
+        return {"mo_id": mo_id, "status": "parsed", "cnt": doctors_cnt, "url": site_url}
 
     except Exception as e:
         msg = re.sub(r"[^\x20-\x7EЀ-ӿ\s]", "?", str(e))[:200]
@@ -160,7 +160,7 @@ def run(limit: int | None = None, retry: bool = False):
             s = res.get("status", "")
             if s == "parsed":
                 ok += 1
-                log.info(f"[{i}/{len(rows)}] ✓ {res['mo_id']} — {res['cnt']} врачей")
+                log.info(f"[{i}/{len(rows)}] ✓ {res['mo_id']} — {res['cnt']} врачей | {res.get('url', '')}")
             elif s == "url_failed":
                 no_url += 1
             elif s == "no_doctors":
