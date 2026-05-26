@@ -1,11 +1,11 @@
 # config.py — единственный файл который нужно редактировать
 
 CH = {
-    "host":     "localhost",   # или IP сервера
+    "host":     "clickhouse.moscow",   # или IP сервера
     "port":     8123,
     "database": "NSI",
-    "user":     "default",
-    "password": "",
+    "user":     "GrushkoIV",
+    "password": "jNbrvzd1IcF0Yx5I",
 }
 
 NSI_TABLE     = "NSI.reestr_med_org"
@@ -38,7 +38,7 @@ YANDEX_SEARCH_KEY    = "AQVNx6L2x-qkgdhEc8Ard-C-lyVl85uI5m3PcVsV"
 YANDEX_SEARCH_FOLDER = "b1gn7gbculvpn3qbjs2t"
 
 # Сервисный аккаунт ai-doctor-parser (роль ai.languageModels.user)
-YANDEX_GPT_KEY = "КЛЮЧ_ОТ_AI_DOCTOR_PARSER"
+YANDEX_GPT_KEY = "AQVN00qqSACarUFubiAqAj1Tng3qZ_XMc6duDSHl"
 
 WORKERS         = 2   # поиск чувствителен к rate-limit; для парсинга можно поднять до 5
 SEARCH_DELAY_S  = 2.0
