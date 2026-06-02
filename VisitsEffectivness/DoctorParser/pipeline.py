@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 import config
 import db
-from searcher import find_mo_site
+from searcher import find_mo_site, _is_blacklisted
 from extractor import parse_doctors_from_site
 
 logging.basicConfig(
@@ -46,6 +46,11 @@ def process_mo(row: dict) -> dict:
     try:
         # ── Шаг 1: поиск сайта ───────────────────────────────
         site_url = row.get("site_url", "").strip()
+
+        # Сбрасываем URL если он попал в чёрный список после сохранения
+        if site_url and _is_blacklisted(site_url):
+            log.debug(f"[{mo_id}] Сохранённый URL в чёрном списке, ищем заново: {site_url}")
+            site_url = ""
 
         if not site_url:
             site_url = find_mo_site(
@@ -103,7 +108,7 @@ def process_mo(row: dict) -> dict:
             site_url=site_url,
             doctors_cnt=doctors_cnt
         )
-        return {"mo_id": mo_id, "status": "parsed", "cnt": doctors_cnt, "url": site_url}
+        return {"mo_id": mo_id, "mo_name": mo_name, "status": "parsed", "cnt": doctors_cnt, "url": site_url}
 
     except Exception as e:
         msg = re.sub(r"[^\x20-\x7EЀ-ӿ\s]", "?", str(e))[:200]
@@ -160,7 +165,7 @@ def run(limit: int | None = None, retry: bool = False):
             s = res.get("status", "")
             if s == "parsed":
                 ok += 1
-                log.info(f"[{i}/{len(rows)}] ✓ {res['mo_id']} — {res['cnt']} врачей | {res.get('url', '')}")
+                log.info(f"[{i}/{len(rows)}] ✓ {res['mo_id']} {res.get('mo_name','')[:40]} — {res['cnt']} врачей | {res.get('url', '')}")
             elif s == "url_failed":
                 no_url += 1
             elif s == "no_doctors":
