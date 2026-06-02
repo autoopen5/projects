@@ -121,7 +121,7 @@ def process_mo(row: dict) -> dict:
 # Основной цикл
 # ─────────────────────────────────────────────
 
-def run(limit: int | None = None, retry: bool = False):
+def run(limit: int | None = None, retry: bool = False, mo_id: str | None = None):
     log.info("=== Pipeline start ===")
     db.init_tables()
 
@@ -139,14 +139,19 @@ def run(limit: int | None = None, retry: bool = False):
     )
     log.info(f"Добавлено в очередь: {added} МО")
 
-    statuses = ["url_failed", "parse_failed", "no_doctors", "url_found"] if retry else ["url_found", "pending"]
-    fetch_n  = limit or config.BATCH_SIZE
-
-    rows = []
-    for status in statuses:
-        rows += db.fetch_pending(fetch_n - len(rows), status=status)
-        if len(rows) >= fetch_n:
-            break
+    if mo_id:
+        rows = db.fetch_by_id(mo_id)
+        if not rows:
+            log.warning(f"МО {mo_id} не найдена в очереди")
+            return
+    else:
+        statuses = ["url_failed", "parse_failed", "no_doctors", "url_found"] if retry else ["url_found", "pending"]
+        fetch_n  = limit or config.BATCH_SIZE
+        rows = []
+        for status in statuses:
+            rows += db.fetch_pending(fetch_n - len(rows), status=status)
+            if len(rows) >= fetch_n:
+                break
 
     if not rows:
         log.info("Нет МО для обработки. Завершено.")
@@ -210,10 +215,11 @@ if __name__ == "__main__":
     parser.add_argument("--stats",  action="store_true", help="Только статистика")
     parser.add_argument("--retry",  action="store_true", help="Повторить failed")
     parser.add_argument("--limit",  type=int, default=None, help="Кол-во МО")
+    parser.add_argument("--mo-id",  type=str, default=None, help="Обработать одну МО по ID")
     args = parser.parse_args()
 
     if args.stats:
         db.init_tables()
         print_stats()
     else:
-        run(limit=args.limit, retry=args.retry)
+        run(limit=args.limit, retry=args.retry, mo_id=args.mo_id)

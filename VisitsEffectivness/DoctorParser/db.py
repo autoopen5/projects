@@ -138,6 +138,16 @@ def fetch_pending(limit: int, status: str = "pending") -> list[dict]:
     """)
 
 
+def fetch_by_id(mo_id: str) -> list[dict]:
+    return ch_select(f"""
+        SELECT mo_id, mo_name, mo_inn, mo_ogrn, mo_region, mo_city, site_url
+        FROM {TBL_QUEUE}
+        WHERE mo_id = '{mo_id}'
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """)
+
+
 def update_queue_status(mo_id: str, status: str, **kwargs):
     """Обновление через вставку новой версии (ReplacingMergeTree)."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
