@@ -195,59 +195,45 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
         return []
 
 
-def _collect_paginated_html(base_url: str, first_html: str, max_pages: int = 10) -> list[str]:
+def _collect_paginated_html(base_url: str, first_html: str, max_pages: int = 15) -> list[str]:
     """
     Собирает HTML со всех страниц пагинации.
-    Пробует три метода:
-    1. rel="next" или ссылки «следующая»
-    2. ?page=N
-    3. ?PAGEN_1=N (Bitrix)
+    Метод 1: все ссылки с page-параметрами из HTML (page, PAGEN_1, curPos, ...)
+    Метод 2: брутфорс ?page=N, ?PAGEN_1=N
+    Метод 3: брутфорс ?curPos=N*step (gosuslugi, шаг 8)
     """
-    from urllib.parse import urlparse, urljoin
+    from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
 
     pages = [first_html]
     base_clean = base_url.split("?")[0].rstrip("/")
 
-    # Метод 1: ищем ссылки на следующую страницу в HTML
-    next_re = re.compile(r"(следующ|вперёд|далее|next|›|»)", re.IGNORECASE)
-    page_link_re = re.compile(r'[?&](page|PAGEN_\d+)=(\d+)', re.IGNORECASE)
+    # Паттерны пагинации: page, PAGEN_1, curPos
+    page_param_re = re.compile(r'[?&](page|PAGEN_\d+|curPos)=(\d+)', re.IGNORECASE)
 
-    def extract_pagination_urls(html: str) -> list[str]:
+    def all_pagination_urls(html: str) -> list[str]:
+        """Все уникальные ссылки с page-параметрами со страницы, отсортированные по номеру."""
         try:
             soup = BeautifulSoup(html, "html.parser")
         except Exception:
             return []
-        urls = []
+        found = {}
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            text = a.get_text(strip=True)
-            is_next = a.get("rel") == ["next"] or next_re.search(text)
-            has_page_param = page_link_re.search(href)
-            if is_next or has_page_param:
+            m = page_param_re.search(href)
+            if m:
+                val = int(m.group(2))
                 full = urljoin(base_url, href)
-                if full != base_url and full not in pages:
-                    urls.append(full)
-        return urls
+                if full != base_url:
+                    found[val] = full
+        return [v for _, v in sorted(found.items())]
 
-    # Пробуем через HTML-ссылки
-    found_via_html = False
-    current_html = first_html
-    seen = {base_url}
-    for _ in range(max_pages - 1):
-        candidates = extract_pagination_urls(current_html)
-        # Берём первую новую ссылку «следующей» страницы
-        next_url = next((u for u in candidates if u not in seen), None)
-        if not next_url:
-            break
-        found_via_html = True
-        seen.add(next_url)
-        html = _fetch(next_url)
-        if not html:
-            break
-        pages.append(html)
-        current_html = html
-
-    if found_via_html:
+    # Метод 1: все страницы из HTML сразу
+    pagination_urls = all_pagination_urls(first_html)
+    if pagination_urls:
+        for url in pagination_urls[:max_pages - 1]:
+            html = _fetch(url)
+            if html:
+                pages.append(html)
         return pages
 
     # Метод 2: брутфорс ?page=N и ?PAGEN_1=N
@@ -256,6 +242,29 @@ def _collect_paginated_html(base_url: str, first_html: str, max_pages: int = 10)
         prev_text = _clean_html(first_html, max_chars=500)
         for n in range(2, max_pages + 1):
             url = f"{base_clean}?{param}={n}"
+            html = _fetch(url)
+            if not html:
+                break
+            text = _clean_html(html, max_chars=500)
+            if not text or text == prev_text:
+                break
+            extra.append(html)
+            prev_text = text
+        if extra:
+            return pages + extra
+
+    # Метод 3: gosuslugi curPos с автодетектом шага (8, 10, 15, 20, 25)
+    for step in (8, 10, 15, 20, 25):
+        extra = []
+        prev_text = _clean_html(first_html, max_chars=500)
+        # Сохраняем остальные query-параметры из base_url
+        parsed = urlparse(base_url)
+        qs = parse_qs(parsed.query)
+        qs.pop("curPos", None)
+        for n in range(1, max_pages):
+            qs["curPos"] = [str(n * step)]
+            new_query = urlencode({k: v[0] for k, v in qs.items()})
+            url = urlunparse(parsed._replace(query=new_query))
             html = _fetch(url)
             if not html:
                 break
