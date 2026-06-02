@@ -28,16 +28,20 @@ HEADERS = {
 }
 
 DOCTOR_PAGE_HINTS = [
-    "/vrachi", "/doctors", "/specialists", "/personnel",
+    "/meditsinskie-rabotniki", "/meditsinskie-rabotniki/",
+    "/vrachi", "/vrachi/", "/doctors", "/doctors/",
+    "/specialists", "/personnel", "/medpersonel",
     "/about/doctors", "/o-nas/vrachi", "/uslugi/vrachi",
-    "/medpersonel", "/about/staff", "/sotrudniki",
-    "/about/specialists", "/our-doctors",
+    "/about/staff", "/sotrudniki", "/about/specialists",
+    "/our-doctors", "/nashi-vrachi", "/medrabotniki",
 ]
 
 DOCTOR_PAGE_LINK_RE = re.compile(
-    r"(врач|доктор|специалист|персонал|сотрудник|медицинский состав)",
+    r"(медицинск[а-я]* работник|врач|доктор|специалист|персонал|сотрудник|медицинский состав)",
     re.IGNORECASE
 )
+
+PAGINATION_RE = re.compile(r'[?&]page=(\d+)|/page/(\d+)', re.IGNORECASE)
 
 
 def _fetch(url: str, retries: int = MAX_RETRIES) -> str | None:
@@ -191,9 +195,28 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
         return []
 
 
+def _get_next_page_url(current_url: str, html: str) -> str | None:
+    """Ищет ссылку на следующую страницу пагинации."""
+    soup = BeautifulSoup(html, "html.parser") if html else None
+    if not soup:
+        return None
+    # Ищем ссылку с текстом "следующая", "вперёд", "→", ">" или rel="next"
+    next_re = re.compile(r'(следующ|вперёд|далее|next|\→|»|>)', re.IGNORECASE)
+    for a in soup.find_all("a", href=True):
+        if a.get("rel") == ["next"] or next_re.search(a.get_text(strip=True)):
+            href = a["href"]
+            if href.startswith("http"):
+                return href
+            if href.startswith("/"):
+                from urllib.parse import urlparse
+                base = urlparse(current_url)
+                return f"{base.scheme}://{base.netloc}{href}"
+    return None
+
+
 def parse_doctors_from_site(mo_id: str, site_url: str) -> list[dict]:
     """
-    Полный цикл: сайт МО → страница врачей → текст → LLM → список врачей.
+    Полный цикл: сайт МО → страница врачей → текст (с пагинацией) → LLM → список врачей.
     """
     main_html = _fetch(site_url)
     if not main_html:
@@ -212,11 +235,37 @@ def parse_doctors_from_site(mo_id: str, site_url: str) -> list[dict]:
         log.warning(f"[{mo_id}] Страница врачей не загрузилась")
         return []
 
-    page_text = _clean_html(page_html)
-    if len(page_text) < 100:
-        log.debug(f"[{mo_id}] Страница пустая после очистки")
-        return []
+    # Собираем текст со всех страниц пагинации (максимум 10 страниц)
+    all_doctors: list[dict] = []
+    current_url  = doctor_page_url
+    current_html = page_html
+    seen_urls    = {current_url}
 
-    doctors = extract_doctors_llm(page_text)
-    log.info(f"[{mo_id}] Извлечено врачей: {len(doctors)}")
-    return doctors
+    for page_num in range(1, 11):
+        page_text = _clean_html(current_html)
+        if len(page_text) < 100:
+            break
+
+        doctors = extract_doctors_llm(page_text)
+        all_doctors.extend(doctors)
+        log.debug(f"[{mo_id}] Страница {page_num}: {len(doctors)} врачей")
+
+        next_url = _get_next_page_url(current_url, current_html)
+        if not next_url or next_url in seen_urls:
+            break
+        seen_urls.add(next_url)
+        current_html = _fetch(next_url)
+        if not current_html:
+            break
+        current_url = next_url
+
+    # Дедупликация по имени
+    seen_names = set()
+    result = []
+    for d in all_doctors:
+        if d["doctor_name"] not in seen_names:
+            seen_names.add(d["doctor_name"])
+            result.append(d)
+
+    log.info(f"[{mo_id}] Извлечено врачей: {len(result)}")
+    return result
