@@ -37,7 +37,7 @@ HEADERS = {
 BLACKLIST_DOMAINS = {
     "prodoctorov.ru", "napopravku.ru", "docdoc.ru", "zoon.ru",
     "yell.ru", "2gis.ru", "google.com", "yandex.ru", "yandex.com",
-    "gosuslugi.ru", "mos.ru", "rosminzdrav.ru", "egisz.ru",
+    "mos.ru", "rosminzdrav.ru", "egisz.ru",
     "wikipedia.org", "vk.com", "ok.ru", "hh.ru", "avito.ru",
     "t.me", "telegram.me", "rutube.ru", "youtube.com",
     "bus.gov.ru", "zakupki.gov.ru", "nalog.ru", "rusprofile.ru",
@@ -45,6 +45,8 @@ BLACKLIST_DOMAINS = {
     "doctor73.ru", "med.ulgov.ru", "doctu.ru",
     "k-vrachu.ru", "kamgov.ru", "zdrav.mosreg.ru",
 }
+# gosuslugi.ru намеренно НЕ в чёрном списке:
+# поддомены вида babymed.gosuslugi.ru — официальные сайты МО с полным списком врачей
 
 MO_SITE_SIGNALS = [
     r"врач", r"расписание", r"запись", r"поликлиник",
