@@ -195,23 +195,79 @@ def extract_doctors_llm(page_text: str) -> list[dict]:
         return []
 
 
-def _get_next_page_url(current_url: str, html: str) -> str | None:
-    """Ищет ссылку на следующую страницу пагинации."""
-    soup = BeautifulSoup(html, "html.parser") if html else None
-    if not soup:
-        return None
-    # Ищем ссылку с текстом "следующая", "вперёд", "→", ">" или rel="next"
-    next_re = re.compile(r'(следующ|вперёд|далее|next|\→|»|>)', re.IGNORECASE)
-    for a in soup.find_all("a", href=True):
-        if a.get("rel") == ["next"] or next_re.search(a.get_text(strip=True)):
+def _collect_paginated_html(base_url: str, first_html: str, max_pages: int = 10) -> list[str]:
+    """
+    Собирает HTML со всех страниц пагинации.
+    Пробует три метода:
+    1. rel="next" или ссылки «следующая»
+    2. ?page=N
+    3. ?PAGEN_1=N (Bitrix)
+    """
+    from urllib.parse import urlparse, urljoin
+
+    pages = [first_html]
+    base_clean = base_url.split("?")[0].rstrip("/")
+
+    # Метод 1: ищем ссылки на следующую страницу в HTML
+    next_re = re.compile(r"(следующ|вперёд|далее|next|›|»)", re.IGNORECASE)
+    page_link_re = re.compile(r'[?&](page|PAGEN_\d+)=(\d+)', re.IGNORECASE)
+
+    def extract_pagination_urls(html: str) -> list[str]:
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return []
+        urls = []
+        for a in soup.find_all("a", href=True):
             href = a["href"]
-            if href.startswith("http"):
-                return href
-            if href.startswith("/"):
-                from urllib.parse import urlparse
-                base = urlparse(current_url)
-                return f"{base.scheme}://{base.netloc}{href}"
-    return None
+            text = a.get_text(strip=True)
+            is_next = a.get("rel") == ["next"] or next_re.search(text)
+            has_page_param = page_link_re.search(href)
+            if is_next or has_page_param:
+                full = urljoin(base_url, href)
+                if full != base_url and full not in pages:
+                    urls.append(full)
+        return urls
+
+    # Пробуем через HTML-ссылки
+    found_via_html = False
+    current_html = first_html
+    seen = {base_url}
+    for _ in range(max_pages - 1):
+        candidates = extract_pagination_urls(current_html)
+        # Берём первую новую ссылку «следующей» страницы
+        next_url = next((u for u in candidates if u not in seen), None)
+        if not next_url:
+            break
+        found_via_html = True
+        seen.add(next_url)
+        html = _fetch(next_url)
+        if not html:
+            break
+        pages.append(html)
+        current_html = html
+
+    if found_via_html:
+        return pages
+
+    # Метод 2: брутфорс ?page=N и ?PAGEN_1=N
+    for param in ("page", "PAGEN_1"):
+        extra = []
+        prev_text = _clean_html(first_html, max_chars=500)
+        for n in range(2, max_pages + 1):
+            url = f"{base_clean}?{param}={n}"
+            html = _fetch(url)
+            if not html:
+                break
+            text = _clean_html(html, max_chars=500)
+            if not text or text == prev_text:
+                break
+            extra.append(html)
+            prev_text = text
+        if extra:
+            return pages + extra
+
+    return pages
 
 
 def parse_doctors_from_site(mo_id: str, site_url: str) -> list[dict]:
@@ -235,32 +291,21 @@ def parse_doctors_from_site(mo_id: str, site_url: str) -> list[dict]:
         log.warning(f"[{mo_id}] Страница врачей не загрузилась")
         return []
 
-    # Собираем текст со всех страниц пагинации (максимум 10 страниц)
+    # Собираем HTML со всех страниц пагинации
+    all_pages = _collect_paginated_html(doctor_page_url, page_html)
+    log.debug(f"[{mo_id}] Страниц пагинации: {len(all_pages)}")
+
     all_doctors: list[dict] = []
-    current_url  = doctor_page_url
-    current_html = page_html
-    seen_urls    = {current_url}
-
-    for page_num in range(1, 11):
-        page_text = _clean_html(current_html)
+    for i, html in enumerate(all_pages, 1):
+        page_text = _clean_html(html)
         if len(page_text) < 100:
-            break
-
+            continue
         doctors = extract_doctors_llm(page_text)
         all_doctors.extend(doctors)
-        log.debug(f"[{mo_id}] Страница {page_num}: {len(doctors)} врачей")
-
-        next_url = _get_next_page_url(current_url, current_html)
-        if not next_url or next_url in seen_urls:
-            break
-        seen_urls.add(next_url)
-        current_html = _fetch(next_url)
-        if not current_html:
-            break
-        current_url = next_url
+        log.debug(f"[{mo_id}] Страница {i}: {len(doctors)} врачей")
 
     # Дедупликация по имени
-    seen_names = set()
+    seen_names: set[str] = set()
     result = []
     for d in all_doctors:
         if d["doctor_name"] not in seen_names:
